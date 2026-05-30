@@ -52,13 +52,14 @@ m7-spikefade/
 │   │   ├── base.py          # DataProvider Protocol
 │   │   └── alpaca_provider.py  # live WS 1-min bars + REST warmup
 │   ├── strategy/
-│   │   ├── indicators.py    # rsi, zscore, ema, vwap  (pure)
+│   │   ├── indicators.py    # rsi, zscore, ema, vwap, bollinger  (pure)
 │   │   ├── spike_fade.py    # generate(df) -> SignalResult  (pure)
-│   │   └── regime.py        # detect(df) -> "up"|"down"|"range"  (pure)
+│   │   ├── regime.py        # detect(df) -> "up"|"down"|"range"  (pure)
+│   │   └── bollinger_confluence.py  # multi-TF band agreement + score  (pure)
 │   ├── store/
 │   │   └── tape.py          # append signal events to logs/tape_YYYY-MM-DD.jsonl
-│   ├── runner.py            # async: WS → on bar-close → signal → terminal + tape
-│   └── tests/               # unit tests for indicators, spike_fade, regime
+│   ├── runner.py            # async: WS → on bar-close → signal → BB confirm → terminal + tape
+│   └── tests/               # unit tests for indicators, spike_fade, regime, confluence
 ├── logs/                    # JSONL tapes (gitignored)
 ├── .env.example
 ├── requirements.txt
@@ -77,6 +78,9 @@ Alpaca WS (1-min bars, 7 symbols)
         → indicators (rsi, zscore, ema, vwap)
         → spike_fade.generate(df)  -> {buy, sell, z, rsi}
         → regime.detect(df)        -> "up"|"down"|"range"
+        → IF buy or sell fired:
+            → REST-fetch recent bars for the 6 timeframes (1m,3m,5m,15m,45m,1H)
+            → bollinger_confluence: per-TF band agreement → score (0-6) + confirmed flag
         → emit signal line to terminal
         → append signal event to logs/tape_YYYY-MM-DD.jsonl
 ```
@@ -104,8 +108,9 @@ sell_sig = (rolling_max(z,  K) >  Z_ENTRY)
 **Defaults (from `config.yaml`):** `Zw=20, K=3, Z_ENTRY=2.0, RSI_OS=30, RSI_OB=70`.
 
 **Function contracts:**
-- `indicators`: `rsi(close, n)`, `zscore(series, w)`, `ema(close, n)`, `vwap(df)` — pure,
-  return pandas Series.
+
+- `indicators`: `rsi(close, n)`, `zscore(series, w)`, `ema(close, n)`, `vwap(df)`,
+  `bollinger(close, n, k) -> (mid, upper, lower)` — pure, return pandas Series.
 - `spike_fade.generate(df) -> {"buy": bool, "sell": bool, "z": float, "rsi": float}`
   (evaluated for the last/closed bar).
 - `regime.detect(df) -> "up" | "down" | "range"` — based on `EMA(50)` slope vs a
@@ -113,6 +118,29 @@ sell_sig = (rolling_max(z,  K) >  Z_ENTRY)
 
 In Phase 1 the regime is **logged alongside** each signal. No signal suppression by
 regime yet — that is the decision layer's job in Phase 2.
+
+---
+
+## 4a. Multi-timeframe Bollinger Band confirmation
+
+Spike-fade remains the **trigger**. Bollinger Bands act as a **confirmation filter** that
+grades each fired signal; they never create or suppress signals in Phase 1.
+
+- **Indicator:** `bollinger(close, n, k)` → `mid = SMA(n)`, `upper/lower = mid ± k·std(n)`.
+  Defaults **n=20, k=2.0** (configurable: `bb_period`, `bb_std`).
+- **Timeframes:** `1m, 3m, 5m, 15m, 45m, 1H` (configurable `timeframes` list).
+- **Per-TF agreement** (evaluated on the most recent closed bar of each TF):
+  - **buy** signal → TF agrees if `close < lower_band` (oversold).
+  - **sell** signal → TF agrees if `close > upper_band` (overbought).
+- **Confluence score** = count of agreeing timeframes (0–6).
+- **Confirmed flag:** `confirmed = score >= bb_confirm_min` (default **3**, configurable).
+- Implemented in `strategy/bollinger_confluence.py`:
+  `score(signal_side, per_tf_bars, bb_period, bb_std) -> {"bb_score": int,
+  "bb_confirmed": bool, "per_tf": {"5m": "below_lower"|"in_band"|"above_upper", ...}}`
+  — pure and unit-tested.
+
+Computed **only when a spike-fade signal fires** (lazy), so it adds no per-bar cost on
+quiet bars.
 
 ---
 
@@ -124,6 +152,11 @@ regime yet — that is the decision layer's job in Phase 2.
   `alpaca-py`. Live 1-min bars via websocket; REST `get_recent_bars` for warmup.
 - **Warmup:** at startup, REST-fetch the last ~60 bars per symbol so z-score/RSI are
   "hot" from the first live bar.
+- **Multi-timeframe bars:** the 3m/5m/15m/45m/1H bars for Bollinger confirmation are
+  requested **directly from Alpaca** via `get_recent_bars(symbol, timeframe, lookback)`
+  using Alpaca's custom `TimeFrame` amounts (e.g. `3Min`, `45Min`, `1Hour`). Fetched
+  **lazily on signal** — only when a spike-fade signal fires — not continuously streamed.
+  Each TF pulls enough bars for `BB(bb_period)` (≈ `bb_period + a few`).
 - **Feed:** `iex` (free) by default, configurable.
 
 ---
@@ -145,6 +178,9 @@ regime yet — that is the decision layer's job in Phase 2.
 - `store/tape.py` appends one JSON object per signal evaluation to
   `logs/tape_YYYY-MM-DD.jsonl`.
 - Event shape (minimum): `{ts_utc, symbol, close, z, rsi, regime, buy, sell}`.
+- When a signal fires, the event also carries:
+  `bb_score` (0–6), `bb_confirmed` (bool), and `bb_per_tf`
+  (e.g. `{"1m":"below_lower","5m":"in_band", ...}`).
 - `logs/` is gitignored. (Full SQLite storage layer is Phase 3 — not here.)
 
 ---
@@ -163,10 +199,13 @@ regime yet — that is the decision layer's job in Phase 2.
 
 Unit tests (pytest) for the pure functions, using synthetic DataFrames with
 known-correct outputs:
-- `indicators`: RSI/z-score/EMA/VWAP against hand-computed values.
+
+- `indicators`: RSI/z-score/EMA/VWAP/Bollinger against hand-computed values.
 - `spike_fade.generate`: a hand-built drop-reversal series MUST fire `buy`; a spike-
   reversal series MUST fire `sell`; a flat/noise series MUST fire neither.
 - `regime.detect`: rising / falling / flat series classify as up / down / range.
+- `bollinger_confluence`: all-TFs-agree → score 6 / confirmed; none agree → score 0 /
+  unconfirmed; threshold boundary (`score == bb_confirm_min`) → confirmed.
 
 No live-network tests in Phase 1; the live WS path is exercised manually against the DoD.
 
