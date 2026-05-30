@@ -65,3 +65,44 @@ class Decision:
     side: Optional[Side]
     rationale: str
     confirmations: dict = field(default_factory=dict)
+
+
+# --- TradingAgents-style committee (Phase 3, optional, Claude) ---
+@dataclass
+class AnalystReport:
+    role: str  # value | momentum | sentiment | contrarian | news_technical
+    side: Literal["long", "short", "pass"]
+    confidence: float  # 0..1
+    rationale: str
+    available: bool = True
+
+
+@dataclass
+class DebateTurn:
+    side: Literal["bull", "bear"]
+    round: int
+    argument: str
+    strongest_point: str
+
+
+@dataclass
+class TraderView:
+    side: Literal["long", "short", "pass"]
+    confidence: float  # 0..1
+    rationale: str
+    key_risk: str
+
+
+@dataclass
+class CommitteeVerdict:
+    symbol: str
+    side: Literal["long", "short", "pass"]
+    confidence: float  # 0..1
+    rationale: str
+    analyst_reports: list = field(default_factory=list)
+    debate: list = field(default_factory=list)
+    trader: Optional[TraderView] = None
+    rounds_run: int = 0
+    cost_usd: float = 0.0
+    available: bool = True  # False => decision layer ignores it
+    error: str = ""

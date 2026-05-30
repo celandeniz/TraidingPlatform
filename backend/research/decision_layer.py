@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .base import CatalystVerdict, Decision, FundamentalScore, Side
+from .base import CatalystVerdict, CommitteeVerdict, Decision, FundamentalScore, Side
 
 
 def decide(
@@ -22,6 +22,9 @@ def decide(
     fundamental: Optional[FundamentalScore] = None,
     fundamental_can_veto: bool = False,
     allow_spot_short: bool = False,
+    committee: Optional[CommitteeVerdict] = None,
+    committee_mode: str = "off",  # off | confirm | veto | decide
+    committee_veto_confidence: float = 0.6,
 ) -> Decision:
     """Map (signal side, tier, regime) + gate -> action, applying the gate rule.
 
@@ -41,6 +44,13 @@ def decide(
             "score": fundamental.score,
             "label": fundamental.label,
             "available": fundamental.available,
+        }
+    if committee is not None and committee_mode != "off":
+        confirmations["committee"] = {
+            "side": committee.side,
+            "confidence": committee.confidence,
+            "available": committee.available,
+            "rationale": committee.rationale,
         }
 
     # Gate: suppression is authoritative.
@@ -70,6 +80,25 @@ def decide(
             return Decision(symbol, "NONE", gate.verdict, None,
                             rationale=f"fundamental veto (score {fundamental.score:+.2f})",
                             confirmations=confirmations)
+
+    # Committee influence (gate already passed; gate stays authoritative above).
+    # Only acts when a verdict is present, available, and mode is veto/decide.
+    if committee is not None and committee.available and committee_mode in ("veto", "decide"):
+        committee_side = {"long": "buy", "short": "sell"}.get(committee.side)
+        if committee_mode == "veto":
+            opposes = committee.side == "pass" or (
+                committee_side is not None and committee_side != side
+            )
+            if opposes and committee.confidence >= committee_veto_confidence:
+                return Decision(symbol, "NONE", gate.verdict, None,
+                                rationale=f"committee veto ({committee.side} "
+                                          f"{committee.confidence:.2f})",
+                                confirmations=confirmations)
+        elif committee_mode == "decide":
+            if committee.side == "pass":
+                return Decision(symbol, "NONE", gate.verdict, None,
+                                rationale="committee: pass", confirmations=confirmations)
+            side = committee_side  # committee drives the action mapping
 
     # Map to action by tier.
     if tier == "high_vol":

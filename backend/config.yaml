@@ -114,6 +114,26 @@ research:
       momentum: 1.0
       sentiment: 1.0
       contrarian: 1.2
+  # TradingAgents-style committee: analysts -> bull/bear debate -> trader -> risk.
+  # OFF by default (cost); on-demand; degrades to available=False without a key.
+  committee:
+    enabled: false
+    mode: confirm                    # off | confirm | veto | decide
+    debate_rounds: 1                 # hard-clamped to <= 3 in code
+    deep_analysts: false             # cheap model for the 5 analyst votes
+    deep_debate: false               # cheap model for the back-and-forth
+    deep_trader: true                # deep model only for the single synthesis
+    risk_llm: false                  # pure-python risk pass unless true
+    veto_confidence: 0.6             # used only in mode: veto
+    fallback_to_consensus: true      # if unavailable, weighted persona consensus
+    cache_minutes: 10
+    max_committees_per_min: 3
+    weights:                         # for the consensus fallback
+      value: 1.0
+      momentum: 1.0
+      sentiment: 1.0
+      contrarian: 1.2
+      news_technical: 1.0
   llm:
     model: claude-haiku-4-5-20251001   # cheap tier for high-volume layers
     model_deep: claude-opus-4-8        # used for persona consensus / deep research
