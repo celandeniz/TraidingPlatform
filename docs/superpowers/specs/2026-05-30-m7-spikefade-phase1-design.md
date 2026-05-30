@@ -52,10 +52,12 @@ m7-spikefade/
 │   │   ├── base.py          # DataProvider Protocol
 │   │   └── alpaca_provider.py  # live WS 1-min bars + REST warmup
 │   ├── strategy/
+│   │   ├── base.py          # SignalStrategy / ConfirmationStrategy Protocols, BarContext
+│   │   ├── registry.py      # key -> strategy class; enabled list from config
 │   │   ├── indicators.py    # rsi, zscore, ema, vwap, bollinger  (pure)
-│   │   ├── spike_fade.py    # generate(df) -> SignalResult  (pure)
-│   │   ├── regime.py        # detect(df) -> "up"|"down"|"range"  (pure)
-│   │   └── bollinger_confluence.py  # multi-TF band agreement + score  (pure)
+│   │   ├── spike_fade.py    # generate(df) (pure) + SpikeFadeStrategy adapter
+│   │   ├── regime.py        # detect(df) -> "up"|"down"|"range"  (pure, shared helper)
+│   │   └── bollinger_confluence.py  # multi-TF score (pure) + BollingerConfluenceStrategy
 │   ├── store/
 │   │   └── tape.py          # append signal events to logs/tape_YYYY-MM-DD.jsonl
 │   ├── runner.py            # async: WS → on bar-close → signal → BB confirm → terminal + tape
@@ -144,6 +146,41 @@ quiet bars.
 
 ---
 
+## 4b. Pluggable strategy architecture (extensible)
+
+Spike-fade is the first strategy, Bollinger confluence the first confirmation — but the
+system must let us **add new strategies later without touching the runner**. So strategies
+are plugins discovered from config.
+
+- **`strategy/base.py`** — interfaces:
+  - `SignalStrategy(Protocol)`: `name: str`; `evaluate(ctx: BarContext) -> StrategySignal`
+    where `StrategySignal = {"side": "buy"|"sell"|None, "strength": float, "meta": dict}`.
+    A signal strategy decides direction on the primary (1m) bar window.
+  - `ConfirmationStrategy(Protocol)`: `name: str`;
+    `confirm(side, ctx: BarContext) -> Confirmation` where
+    `Confirmation = {"name": str, "score": float, "passed": bool, "meta": dict}`.
+    A confirmation grades an already-fired signal (it cannot create one).
+- **`BarContext`** — what every strategy receives: the symbol, the rolling 1m DataFrame,
+  a `get_bars(timeframe, lookback)` callable (lazy multi-TF access via the provider), and
+  resolved config. Strategies never call Alpaca directly — only through the context.
+- **`strategy/registry.py`** — maps a string key → strategy class. The runner reads
+  `config.yaml: strategies.signal` and `strategies.confirmations` (lists of keys) and
+  instantiates only the enabled ones. Adding a strategy = write a class + register a key +
+  add the key to config. No runner changes.
+- **Phase-1 implementations:**
+  - `strategy/spike_fade.py` → `SpikeFadeStrategy` (signal). Pure logic stays in
+    `generate(df)`; the class is a thin adapter to the interface.
+  - `strategy/bollinger_confluence.py` → `BollingerConfluenceStrategy` (confirmation),
+    wrapping the §4a multi-TF scoring.
+  - `strategy/regime.py` stays a shared helper (logged alongside; not a strategy).
+- **Runner combine rule (Phase 1):** for each closed 1m bar, run enabled signal
+  strategies; if any fires, run enabled confirmations; attach all confirmations + scores
+  to the event. No suppression yet — the decision layer (Phase 2) will consume these.
+
+This keeps each strategy a small, independently testable unit behind a stable interface.
+
+---
+
 ## 5. Data layer
 
 - **`DataProvider` Protocol** (`data/base.py`): `stream_bars(symbols, handler)` and
@@ -190,6 +227,8 @@ quiet bars.
 - `.env` (gitignored) holds `ALPACA_API_KEY`, `ALPACA_API_SECRET`,
   `ALPACA_PAPER_BASE_URL`, `ALPACA_DATA_FEED`. A committed `.env.example` documents them.
 - `settings.py` loads `.env` via pydantic-settings.
+- `config.yaml` includes `strategies: {signal: [spike_fade], confirmations: [bollinger]}`
+  — enabling/adding strategies is config-only (see §4b).
 - **Security:** the Alpaca keys shared during brainstorming are considered compromised
   and must be regenerated before use. Secrets never enter the repo.
 
