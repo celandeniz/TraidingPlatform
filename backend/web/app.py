@@ -24,6 +24,9 @@ from pydantic import BaseModel
 from ..data.alpaca_provider import AlpacaProvider
 from ..execution.base import OrderRequest
 from ..execution.paper import PaperExecutionAdapter
+from ..research.copilot_agent import CopilotAgent
+from ..research.llm import ClaudeClient
+from ..research.news_provider import AlpacaNewsProvider
 from ..runner import Engine
 from ..settings import get_config, get_settings
 
@@ -37,6 +40,23 @@ _provider = AlpacaProvider(
     _settings.alpaca_api_key, _settings.alpaca_api_secret, feed=_settings.alpaca_data_feed
 )
 _executor = PaperExecutionAdapter(_settings.alpaca_api_key, _settings.alpaca_api_secret)
+
+# Phase 2 research layer (lazy: only built if an Anthropic key is present).
+_copilot: CopilotAgent | None = None
+_rcfg = _config.get("research", {})
+if _settings.anthropic_api_key and _rcfg.get("copilot", {}).get("enabled", False):
+    _llmcfg = _rcfg.get("llm", {})
+    _claude = ClaudeClient(
+        _settings.anthropic_api_key,
+        model=_llmcfg.get("model", "claude-haiku-4-5-20251001"),
+        model_deep=_llmcfg.get("model_deep", "claude-opus-4-8"),
+        max_calls_per_min=_llmcfg.get("max_calls_per_min", 20),
+        daily_cost_cap_usd=_llmcfg.get("daily_cost_cap_usd", 5.0),
+    )
+    _news = AlpacaNewsProvider(_settings.alpaca_api_key, _settings.alpaca_api_secret)
+    _copilot = CopilotAgent(
+        _claude, _news, cache_minutes=_rcfg.get("copilot", {}).get("cache_minutes", 10)
+    )
 
 
 class Hub:
@@ -176,6 +196,26 @@ async def replay(body: ReplayBody) -> dict:
 
     asyncio.create_task(run())
     return {"started": True, "symbols": symbols, "bars": body.bars}
+
+
+@app.get("/api/copilot/{symbol}")
+async def copilot(symbol: str) -> dict:
+    """On-demand 'why is it moving?' research for one symbol (Claude)."""
+    if _copilot is None:
+        return {
+            "type": "catalyst_update", "symbol": symbol, "available": False,
+            "summary": "Co-pilot disabled (set ANTHROPIC_API_KEY and research.copilot.enabled).",
+            "tag": "none", "headlines": [],
+        }
+    import asyncio as _a
+
+    ctx = await _a.to_thread(_copilot.explain, symbol.upper())
+    event = {
+        "type": "catalyst_update", "symbol": ctx.symbol, "available": True,
+        "summary": ctx.summary, "tag": ctx.tag, "headlines": ctx.headlines,
+    }
+    await hub.broadcast(event)
+    return event
 
 
 @app.websocket("/ws")

@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     alpaca_paper_base_url: str = "https://paper-api.alpaca.markets"
     alpaca_data_feed: str = "iex"
     trading_mode: str = "paper"
+    anthropic_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=(REPO_DIR / ".env", BACKEND_DIR / ".env"),

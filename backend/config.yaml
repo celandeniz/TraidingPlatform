@@ -48,3 +48,31 @@ bollinger:
 data:
   warmup_bars: 60           # 1m bars fetched at startup to warm indicators
   bar_timeframe: 1m         # primary stream timeframe
+
+# AI decision & research layer (Phase 2). See spec phase2-ai-decision.
+research:
+  enabled: true
+  news_provider: alpaca
+  earnings_block_days: 1              # earnings within N days -> SUPPRESS fade
+  block_options_pre_earnings_days: 1  # disable options near earnings (IV crush)
+  news_recency_minutes: 30           # hot news within N min -> WITH_TREND_ONLY
+  gap_catalyst_pct: 2.5              # abnormal gap proxy threshold
+  fundamental:
+    enabled: true
+    can_veto: false
+    cache_hours: 24
+  copilot:
+    enabled: true
+    cache_minutes: 10
+  personas:
+    enabled: false                   # off by default (cost); enable deliberately
+    weights:
+      value: 1.0
+      momentum: 1.0
+      sentiment: 1.0
+      contrarian: 1.2
+  llm:
+    model: claude-haiku-4-5-20251001   # cheap tier for high-volume layers
+    model_deep: claude-opus-4-8        # used for persona consensus / deep research
+    max_calls_per_min: 20
+    daily_cost_cap_usd: 5.0

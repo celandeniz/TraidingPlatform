@@ -55,6 +55,16 @@
   .act{display:flex;gap:6px}
   .buyb{background:rgba(39,215,150,.14);border-color:rgba(39,215,150,.35);color:#9af0cf;padding:4px 10px}
   .sellb{background:rgba(255,92,112,.14);border-color:rgba(255,92,112,.35);color:#ffb3bd;padding:4px 10px}
+  .whyb{background:rgba(74,163,255,.12);border-color:rgba(74,163,255,.32);color:#bcdcff;padding:4px 10px}
+  #copilot{padding:14px}
+  .cp-sym{font-weight:700;font-size:14px}
+  .cp-tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px}
+  .cp-tag.earnings{background:rgba(255,181,71,.16);color:var(--amber)}
+  .cp-tag.news{background:rgba(74,163,255,.16);color:var(--blue)}
+  .cp-tag.macro{background:rgba(189,140,255,.16);color:#bd8cff}
+  .cp-tag.none{background:var(--chip);color:var(--dim)}
+  .cp-sum{margin:8px 0;line-height:1.5}
+  .cp-hl{font-size:12px;color:var(--dim);margin-top:2px}
   #tape{max-height:340px;overflow:auto;font-size:12.5px}
   .trow{display:flex;gap:8px;padding:7px 14px;border-top:1px solid var(--line);align-items:center}
   .trow .t{color:var(--dim);font-variant-numeric:tabular-nums;min-width:60px}
@@ -106,6 +116,11 @@
       <thead><tr><th>Symbol</th><th>Qty</th><th>Avg</th><th>Last</th><th>P&L</th></tr></thead>
       <tbody id="positions"><tr><td colspan="5" class="muted">No open positions</td></tr></tbody>
     </table>
+  </section>
+
+  <section class="card">
+    <h2>Why is it moving? (AI co-pilot)</h2>
+    <div id="copilot"><div class="muted">Click “Why?” on a symbol for an AI catalyst read.</div></div>
   </section>
 
   <section class="card full">
@@ -164,6 +179,7 @@ function buildGrid(){
     tr.appendChild(el("td",{cls:"act"},[
       el("button",{cls:"buyb",text:"Buy",onclick:()=>order(sym,"buy")}),
       el("button",{cls:"sellb",text:"Sell",onclick:()=>order(sym,"sell")}),
+      el("button",{cls:"whyb",text:"Why?",onclick:()=>askWhy(sym)}),
     ]));
     g.appendChild(tr);
   });
@@ -220,6 +236,31 @@ function addTape(e){
   while(t.children.length>120) t.removeChild(t.lastChild);
 }
 
+async function askWhy(symbol){
+  const c=$("#copilot"); c.textContent="";
+  c.appendChild(el("div",{cls:"muted",text:"Researching "+symbol+"… (Claude)"}));
+  try{
+    const r=await fetch("/api/copilot/"+symbol);
+    renderCopilot(await r.json());
+  }catch(err){
+    c.textContent=""; c.appendChild(el("div",{cls:"muted",text:"Co-pilot error: "+err}));
+  }
+}
+
+function renderCopilot(e){
+  const c=$("#copilot"); c.textContent="";
+  const head=el("div",{},[
+    el("span",{cls:"cp-sym",text:e.symbol}),
+    el("span",{cls:"cp-tag "+(e.tag||"none"),text:(e.tag||"none").toUpperCase()}),
+  ]);
+  c.appendChild(head);
+  c.appendChild(el("div",{cls:"cp-sum",text:e.summary||"—"}));
+  if(e.headlines&&e.headlines.length){
+    c.appendChild(el("div",{cls:"cp-hl",text:"Recent headlines:"}));
+    e.headlines.forEach(h=> c.appendChild(el("div",{cls:"cp-hl",text:"• "+h})));
+  }
+}
+
 async function loadPositions(){
   try{
     const r=await fetch("/api/positions"); const j=await r.json();
@@ -266,6 +307,7 @@ function connect(){
     else if(e.type==="signal") onSignal(e);
     else if(e.type==="price") onPrice(e);
     else if(e.type==="order") addTape(e);
+    else if(e.type==="catalyst_update") renderCopilot(e);
     else if(e.type==="replay_done") $("#replayState").textContent="replay complete";
   };
 }
