@@ -1,0 +1,50 @@
+# M7 Spike-Fade — Phase 1 configuration
+# All thresholds live here. No magic numbers in code.
+
+universe:
+  - AAPL
+  - MSFT
+  - GOOGL
+  - AMZN
+  - NVDA
+  - META
+  - TSLA
+
+# Which strategies are active. Adding a strategy = register a key + list it here.
+strategies:
+  signal:
+    - spike_fade
+  confirmations:
+    - bollinger
+
+# Spike-fade signal parameters (see spec §4)
+spike_fade:
+  zscore_window: 20      # Zw
+  lookback_k: 3          # K
+  z_entry: 2.0           # Z_ENTRY
+  rsi_period: 14
+  rsi_oversold: 30       # RSI_OS
+  rsi_overbought: 70     # RSI_OB
+
+# Trend regime classification (logged alongside; no suppression in Phase 1)
+regime:
+  ema_period: 50
+  slope_threshold: 0.0005   # |EMA slope per bar / price| below this => "range"
+
+# Bollinger multi-timeframe confirmation (see spec §4a)
+bollinger:
+  period: 20
+  std: 2.0
+  confirm_min: 3            # >= this many agreeing timeframes => confirmed
+  timeframes:
+    - 1m
+    - 3m
+    - 5m
+    - 15m
+    - 45m
+    - 1h
+
+# Data layer
+data:
+  warmup_bars: 60           # 1m bars fetched at startup to warm indicators
+  bar_timeframe: 1m         # primary stream timeframe

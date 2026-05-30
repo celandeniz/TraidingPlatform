@@ -1,0 +1,38 @@
+"""Strategy registry: string key -> strategy class.
+
+The runner instantiates only the strategies named in config.yaml. To add a new
+strategy: implement it, add it to one of the maps below, and list its key under
+`strategies:` in config.yaml. No runner changes required.
+"""
+from __future__ import annotations
+
+from .base import ConfirmationStrategy, SignalStrategy
+from .bollinger_confluence import BollingerConfluenceStrategy
+from .spike_fade import SpikeFadeStrategy
+
+SIGNAL_STRATEGIES: dict[str, type] = {
+    "spike_fade": SpikeFadeStrategy,
+}
+
+CONFIRMATION_STRATEGIES: dict[str, type] = {
+    "bollinger": BollingerConfluenceStrategy,
+}
+
+
+def build_signal_strategies(config: dict) -> list[SignalStrategy]:
+    keys = config.get("strategies", {}).get("signal", [])
+    return [_make(SIGNAL_STRATEGIES, k, "signal") for k in keys]
+
+
+def build_confirmation_strategies(config: dict) -> list[ConfirmationStrategy]:
+    keys = config.get("strategies", {}).get("confirmations", [])
+    return [_make(CONFIRMATION_STRATEGIES, k, "confirmation") for k in keys]
+
+
+def _make(registry: dict[str, type], key: str, kind: str):
+    if key not in registry:
+        raise KeyError(
+            f"Unknown {kind} strategy '{key}'. "
+            f"Registered: {sorted(registry)}"
+        )
+    return registry[key]()
