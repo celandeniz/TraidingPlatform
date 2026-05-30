@@ -11,11 +11,26 @@ universe:
   - TSLA
 
 # Which strategies are active. Adding a strategy = register a key + list it here.
+# Signals: spike_fade (mean-reversion), ema_momentum (trend cross),
+#   donchian_breakout (range breakout). Confirmations: bollinger, volume.
 strategies:
   signal:
     - spike_fade
+    - ema_momentum
+    - donchian_breakout
   confirmations:
     - bollinger
+    - volume
+
+# Trend-follow / breakout signal parameters
+ema_momentum:
+  fast: 12
+  slow: 26
+donchian_breakout:
+  channel: 20
+volume:
+  window: 20
+  mult: 1.5
 
 # Spike-fade signal parameters (see spec §4)
 spike_fade:

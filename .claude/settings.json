@@ -6,7 +6,8 @@
       "Bash(.venv/bin/pip install *)",
       "Bash(.venv/bin/python -c \"import ccxt; print\\('ccxt', ccxt.__version__\\)\")",
       "Bash(.venv/bin/python -c \"import backend.data.ccxt_provider, backend.execution.ccxt_adapter, backend.brokers; print\\('ccxt modules import ok'\\)\")",
-      "Bash(.venv/bin/python -)"
+      "Bash(.venv/bin/python -)",
+      "Bash(awk '{print $9}')"
     ]
   }
 }

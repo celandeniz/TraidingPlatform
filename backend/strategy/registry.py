@@ -8,14 +8,20 @@ from __future__ import annotations
 
 from .base import ConfirmationStrategy, SignalStrategy
 from .bollinger_confluence import BollingerConfluenceStrategy
+from .donchian_breakout import DonchianBreakoutStrategy
+from .ema_momentum import EmaMomentumStrategy
 from .spike_fade import SpikeFadeStrategy
+from .volume_confirm import VolumeConfirmStrategy
 
 SIGNAL_STRATEGIES: dict[str, type] = {
     "spike_fade": SpikeFadeStrategy,
+    "ema_momentum": EmaMomentumStrategy,
+    "donchian_breakout": DonchianBreakoutStrategy,
 }
 
 CONFIRMATION_STRATEGIES: dict[str, type] = {
     "bollinger": BollingerConfluenceStrategy,
+    "volume": VolumeConfirmStrategy,
 }
 
 
