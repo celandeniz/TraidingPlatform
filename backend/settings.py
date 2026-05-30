@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     alpaca_data_feed: str = "iex"
     trading_mode: str = "paper"
     anthropic_api_key: str = ""
+    live_trading: bool = False
+    ccxt_api_key: str = ""
+    ccxt_api_secret: str = ""
+    ccxt_exchange: str = "binance"
 
     model_config = SettingsConfigDict(
         env_file=(REPO_DIR / ".env", BACKEND_DIR / ".env"),

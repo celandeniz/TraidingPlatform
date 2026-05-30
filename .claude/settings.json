@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(git commit -q -m ' *)",
-      "Bash(.venv/bin/python -m pytest backend/tests/ -q -p no:cacheprovider)"
+      "Bash(.venv/bin/python -m pytest backend/tests/ -q -p no:cacheprovider)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/python -c \"import ccxt; print\\('ccxt', ccxt.__version__\\)\")",
+      "Bash(.venv/bin/python -c \"import backend.data.ccxt_provider, backend.execution.ccxt_adapter, backend.brokers; print\\('ccxt modules import ok'\\)\")",
+      "Bash(.venv/bin/python -)"
     ]
   }
 }

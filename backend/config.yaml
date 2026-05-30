@@ -49,6 +49,34 @@ data:
   warmup_bars: 60           # 1m bars fetched at startup to warm indicators
   bar_timeframe: 1m         # primary stream timeframe
 
+# Execution lifecycle + risk (Phase 3). Master switch off => no orders (Phase 1/2 behavior).
+risk:
+  enabled: false
+  allow_equity_short: false       # equity short needs a margin account
+  risk_per_trade_pct: 0.5         # % of equity risked per trade
+  max_concurrent_positions: 5
+  max_position_pct: 20            # cap single-position notional as % of equity
+  max_daily_loss_pct: 3.0         # kill-switch trips here
+
+# Exit rules (main build spec §4.5)
+exits:
+  take_profit_pct: 1.5
+  stop_loss_pct: 1.0
+  trailing_stop_pct: 0.8          # null disables
+  time_stop_minutes: 120
+  opposite_signal_close: true
+  eod_flat_equity: true           # equities flatten before close; crypto ignores
+  eod_flat_minutes: 10
+
+# Broker routing (Alpaca equities + ccxt crypto)
+brokers:
+  default_asset_class: equity
+  symbol_overrides: {}            # e.g. {BTC/USDT: crypto, ETH/USDT: crypto}
+  crypto:
+    exchange: binance
+    sandbox: true                 # Binance testnet = crypto "paper"
+    leverage: 1
+
 # AI decision & research layer (Phase 2). See spec phase2-ai-decision.
 research:
   enabled: true
