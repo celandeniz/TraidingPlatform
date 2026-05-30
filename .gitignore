@@ -16,3 +16,7 @@ venv/
 
 # os
 .DS_Store
+
+# screenshots / playwright artifacts
+dashboard*.png
+.playwright-mcp/

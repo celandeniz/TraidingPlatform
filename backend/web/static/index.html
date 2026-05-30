@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>M7 Spike-Fade — Paper Dashboard</title>
+<style>
+  :root{
+    --bg:#0a0e14; --panel:#121823; --panel2:#0e141d; --line:#1e2733;
+    --text:#d7e0ea; --dim:#7d8a9a; --green:#27d796; --red:#ff5c70;
+    --amber:#ffb547; --blue:#4aa3ff; --chip:#1a2230;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:18px;padding:12px 18px;
+    background:linear-gradient(180deg,#0e141d,#0a0e14);border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;letter-spacing:.3px;font-weight:650}
+  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;
+    background:rgba(74,163,255,.14);color:var(--blue);border:1px solid rgba(74,163,255,.3)}
+  .badge.paper{background:rgba(39,215,150,.13);color:var(--green);
+    border-color:rgba(39,215,150,.32)}
+  .spacer{flex:1}
+  .stat{font-size:12px;color:var(--dim)}
+  .stat b{color:var(--text);font-weight:650}
+  .pl.pos{color:var(--green)} .pl.neg{color:var(--red)}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;
+    background:var(--red);vertical-align:middle}
+  .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
+  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);
+    background:var(--chip);color:var(--text);padding:6px 12px;transition:.12s}
+  button:hover{border-color:#33425a}
+  button.primary{background:rgba(74,163,255,.16);border-color:rgba(74,163,255,.4);color:#bcdcff}
+  .controls{display:flex;gap:8px;align-items:center;padding:10px 18px;
+    border-bottom:1px solid var(--line);background:var(--panel2)}
+  main{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;padding:14px 18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
+    margin:0;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:650}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:left;padding:9px 12px;font-variant-numeric:tabular-nums}
+  th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);font-weight:600}
+  tbody tr{border-top:1px solid var(--line)}
+  tbody tr:hover{background:rgba(255,255,255,.02)}
+  .sym{font-weight:700}
+  .pill{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .pill.buy{background:rgba(39,215,150,.16);color:var(--green)}
+  .pill.sell{background:rgba(255,92,112,.16);color:var(--red)}
+  .pill.none{background:var(--chip);color:var(--dim)}
+  .pill.range{background:rgba(125,138,154,.16);color:var(--dim)}
+  .pill.up{background:rgba(39,215,150,.13);color:var(--green)}
+  .pill.down{background:rgba(255,92,112,.13);color:var(--red)}
+  .bb{font-size:11px;color:var(--dim)}
+  .bb b{color:var(--amber)}
+  .act{display:flex;gap:6px}
+  .buyb{background:rgba(39,215,150,.14);border-color:rgba(39,215,150,.35);color:#9af0cf;padding:4px 10px}
+  .sellb{background:rgba(255,92,112,.14);border-color:rgba(255,92,112,.35);color:#ffb3bd;padding:4px 10px}
+  #tape{max-height:340px;overflow:auto;font-size:12.5px}
+  .trow{display:flex;gap:8px;padding:7px 14px;border-top:1px solid var(--line);align-items:center}
+  .trow .t{color:var(--dim);font-variant-numeric:tabular-nums;min-width:60px}
+  .flash{animation:fl 1s ease-out}
+  @keyframes fl{from{background:rgba(74,163,255,.22)}to{background:transparent}}
+  .muted{color:var(--dim);padding:16px;text-align:center}
+  .full{grid-column:1/-1}
+</style>
+</head>
+<body>
+<header>
+  <h1>M7 Spike-Fade</h1>
+  <span class="badge paper" id="mode">PAPER</span>
+  <span class="stat"><span class="dot" id="conn"></span><span id="connTxt">connecting…</span></span>
+  <div class="spacer"></div>
+  <span class="stat">Equity <b id="equity">—</b></span>
+  <span class="stat">Cash <b id="cash">—</b></span>
+  <span class="stat">Open P&L <b class="pl" id="opl">—</b></span>
+  <span class="stat" id="clock">—</span>
+</header>
+
+<div class="controls">
+  <button class="primary" id="replayBtn">▶ Replay recent bars (live-like)</button>
+  <button id="refreshBtn">↻ Refresh positions</button>
+  <span class="stat" id="replayState"></span>
+  <div class="spacer"></div>
+  <span class="stat">Order qty
+    <input id="qty" type="number" value="1" min="1" step="1"
+      style="width:54px;background:var(--chip);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px"/>
+  </span>
+</div>
+
+<main>
+  <section class="card">
+    <h2>Watchlist & Signals</h2>
+    <table>
+      <thead><tr>
+        <th>Symbol</th><th>Last</th><th>z</th><th>RSI</th>
+        <th>Regime</th><th>Signal</th><th>BB</th><th>Trade (paper)</th>
+      </tr></thead>
+      <tbody id="grid"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>Open Positions</h2>
+    <table>
+      <thead><tr><th>Symbol</th><th>Qty</th><th>Avg</th><th>Last</th><th>P&L</th></tr></thead>
+      <tbody id="positions"><tr><td colspan="5" class="muted">No open positions</td></tr></tbody>
+    </table>
+  </section>
+
+  <section class="card full">
+    <h2>Trade Tape</h2>
+    <div id="tape"><div class="muted">Waiting for signals… hit “Replay recent bars”.</div></div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = (n,d=2)=> n==null||isNaN(n) ? "—" : Number(n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const money = n => n==null?"—":"$"+fmt(n,2);
+let UNIVERSE=[];
+
+// ---- safe DOM helpers (no innerHTML with dynamic data) ----
+function el(tag, opts={}, children=[]){
+  const n=document.createElement(tag);
+  if(opts.cls) n.className=opts.cls;
+  if(opts.text!=null) n.textContent=String(opts.text);
+  if(opts.id) n.id=opts.id;
+  if(opts.color) n.style.color=opts.color;
+  if(opts.weight) n.style.fontWeight=opts.weight;
+  if(opts.onclick) n.addEventListener("click",opts.onclick);
+  for(const c of children){ if(c) n.appendChild(c); }
+  return n;
+}
+function pillEl(cls,txt){ return el("span",{cls:"pill "+cls,text:txt}); }
+function bbEl(score,passed){
+  // "<b>N</b>/6 ✓" built safely
+  const wrap=el("span",{cls:"bb"});
+  if(score==null){ wrap.textContent="—"; return wrap; }
+  wrap.appendChild(el("b",{text:(score|0)}));
+  wrap.appendChild(document.createTextNode("/6"+(passed?" ✓":"")));
+  return wrap;
+}
+
+function clock(){
+  const now=new Date();
+  const et=now.toLocaleTimeString("en-US",{timeZone:"America/New_York",hour12:false});
+  const ist=now.toLocaleTimeString("tr-TR",{timeZone:"Europe/Istanbul",hour:"2-digit",minute:"2-digit"});
+  $("#clock").textContent=`${et} ET · ${ist} IST`;
+}
+setInterval(clock,1000); clock();
+
+function buildGrid(){
+  const g=$("#grid"); g.innerHTML="";
+  UNIVERSE.forEach(sym=>{
+    const tr=document.createElement("tr"); tr.id="r_"+sym;
+    tr.appendChild(el("td",{cls:"sym",text:sym}));
+    tr.appendChild(el("td",{id:"px_"+sym,text:"—"}));
+    tr.appendChild(el("td",{id:"z_"+sym,text:"—"}));
+    tr.appendChild(el("td",{id:"rsi_"+sym,text:"—"}));
+    tr.appendChild(el("td",{id:"rg_"+sym},[pillEl("range","—")]));
+    tr.appendChild(el("td",{id:"sg_"+sym},[pillEl("none","—")]));
+    tr.appendChild(el("td",{id:"bb_"+sym,cls:"bb",text:"—"}));
+    tr.appendChild(el("td",{cls:"act"},[
+      el("button",{cls:"buyb",text:"Buy",onclick:()=>order(sym,"buy")}),
+      el("button",{cls:"sellb",text:"Sell",onclick:()=>order(sym,"sell")}),
+    ]));
+    g.appendChild(tr);
+  });
+}
+
+async function order(symbol,side){
+  const qty=Number($("#qty").value||1);
+  const r=await fetch("/api/order",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({symbol,side,qty})});
+  const j=await r.json();
+  addTape({type:"order",...j});
+  setTimeout(loadPositions,800);
+}
+
+function setCell(id, node){ const c=$("#"+id); if(!c) return; c.textContent=""; c.appendChild(node); }
+
+function onSignal(e){
+  const s=e.symbol;
+  if($("#px_"+s)) $("#px_"+s).textContent=fmt(e.close);
+  if($("#z_"+s)) $("#z_"+s).textContent=e.z==null?"—":fmt(e.z);
+  if($("#rsi_"+s)) $("#rsi_"+s).textContent=e.rsi==null?"—":fmt(e.rsi,1);
+  setCell("rg_"+s, pillEl(e.regime, e.regime));
+  setCell("sg_"+s, pillEl(e.side, e.side.toUpperCase()));
+  setCell("bb_"+s, bbEl(e.bollinger_score??e.bb_score, e.bollinger_passed));
+  const r=$("#r_"+s); if(r){r.classList.remove("flash"); void r.offsetWidth; r.classList.add("flash");}
+  addTape(e);
+}
+
+function onPrice(e){ if($("#px_"+e.symbol)) $("#px_"+e.symbol).textContent=fmt(e.close); }
+
+function addTape(e){
+  const t=$("#tape");
+  const m=t.querySelector(".muted"); if(m) t.textContent="";
+  const now=new Date().toLocaleTimeString("en-US",{hour12:false});
+  const div=el("div",{cls:"trow flash"},[ el("span",{cls:"t",text:now}) ]);
+  if(e.type==="order"){
+    div.appendChild(el("span",{text:"ORDER "+e.side.toUpperCase(),
+      color:e.ok?"var(--green)":"var(--red)",weight:"700"}));
+    div.appendChild(el("span",{cls:"sym",text:e.symbol}));
+    div.appendChild(el("span",{text:"×"+e.qty}));
+    div.appendChild(el("span",{cls:"",color:"var(--dim)",
+      text:"→ "+e.status+(e.detail?(" · "+e.detail):"")}));
+  }else{
+    div.appendChild(pillEl(e.side, e.side.toUpperCase()));
+    div.appendChild(el("span",{cls:"sym",text:e.symbol}));
+    div.appendChild(el("span",{text:"@ "+fmt(e.close)}));
+    div.appendChild(el("span",{color:"var(--dim)",
+      text:"z="+fmt(e.z)+" rsi="+fmt(e.rsi,1)+" · "+e.regime}));
+    const bb=el("span",{cls:"bb"}); bb.appendChild(document.createTextNode("BB "));
+    bb.appendChild(bbEl(e.bollinger_score??e.bb_score, e.bollinger_passed));
+    div.appendChild(bb);
+  }
+  t.prepend(div);
+  while(t.children.length>120) t.removeChild(t.lastChild);
+}
+
+async function loadPositions(){
+  try{
+    const r=await fetch("/api/positions"); const j=await r.json();
+    const a=j.account||{};
+    $("#equity").textContent=money(a.equity);
+    $("#cash").textContent=money(a.cash);
+    const tb=$("#positions"); tb.textContent="";
+    if(!j.positions||!j.positions.length){
+      const td=el("td",{cls:"muted",text:"No open positions"}); td.colSpan=5;
+      tb.appendChild(el("tr",{},[td]));
+      $("#opl").textContent="—"; $("#opl").className="pl"; return;
+    }
+    let total=0;
+    j.positions.forEach(p=>{
+      total+=p.unrealized_pl||0;
+      const cls=p.unrealized_pl>=0?"pos":"neg";
+      tb.appendChild(el("tr",{},[
+        el("td",{cls:"sym",text:p.symbol}),
+        el("td",{text:fmt(p.qty,0)}),
+        el("td",{text:fmt(p.avg_entry)}),
+        el("td",{text:fmt(p.current)}),
+        el("td",{cls:"pl "+cls,text:money(p.unrealized_pl)+" ("+fmt(p.unrealized_plpc)+"%)"}),
+      ]));
+    });
+    $("#opl").textContent=money(total);
+    $("#opl").className="pl "+(total>=0?"pos":"neg");
+  }catch(err){/* market closed / no data is fine */}
+}
+
+$("#replayBtn").onclick=async()=>{
+  $("#replayState").textContent="replaying…";
+  await fetch("/api/replay",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({bars:200,speed_ms:90})});
+};
+$("#refreshBtn").onclick=loadPositions;
+
+function connect(){
+  const ws=new WebSocket(`ws://${location.host}/ws`);
+  ws.onopen=()=>{$("#conn").classList.add("on");$("#connTxt").textContent="live";};
+  ws.onclose=()=>{$("#conn").classList.remove("on");$("#connTxt").textContent="disconnected";setTimeout(connect,1500);};
+  ws.onmessage=ev=>{
+    const e=JSON.parse(ev.data);
+    if(e.type==="hello"){UNIVERSE=e.universe;buildGrid();}
+    else if(e.type==="signal") onSignal(e);
+    else if(e.type==="price") onPrice(e);
+    else if(e.type==="order") addTape(e);
+    else if(e.type==="replay_done") $("#replayState").textContent="replay complete";
+  };
+}
+connect();
+loadPositions();
+</script>
+</body>
+</html>
