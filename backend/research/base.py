@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 GateVerdict = Literal["ALLOW", "WITH_TREND_ONLY", "SUPPRESS"]
-Action = Literal["SPOT_LONG", "CALL", "PUT", "NONE"]
+Action = Literal["SPOT_LONG", "SPOT_SHORT", "CALL", "PUT", "NONE"]
 Side = Literal["buy", "sell"]
 CatalystTag = Literal["earnings", "news", "macro", "none"]
 

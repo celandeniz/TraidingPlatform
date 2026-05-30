@@ -21,12 +21,17 @@ def decide(
     bollinger: Optional[dict] = None,
     fundamental: Optional[FundamentalScore] = None,
     fundamental_can_veto: bool = False,
+    allow_spot_short: bool = False,
 ) -> Decision:
     """Map (signal side, tier, regime) + gate -> action, applying the gate rule.
 
-    Action matrix (Phase 1/2 subset):
+    Action matrix:
       high_vol + buy  -> CALL ;  high_vol + sell -> PUT
-      core    + buy   -> SPOT_LONG ; core + sell -> NONE (no spot short in v1)
+      core    + buy   -> SPOT_LONG
+      core    + sell  -> SPOT_SHORT if allow_spot_short else NONE
+
+    allow_spot_short gates equity shorting (needs a margin account); crypto
+    callers pass it True since crypto shorts are native.
     """
     confirmations: dict = {}
     if bollinger is not None:
@@ -70,7 +75,10 @@ def decide(
     if tier == "high_vol":
         action = "CALL" if side == "buy" else "PUT"
     else:  # core
-        action = "SPOT_LONG" if side == "buy" else "NONE"
+        if side == "buy":
+            action = "SPOT_LONG"
+        else:
+            action = "SPOT_SHORT" if allow_spot_short else "NONE"
 
     rationale = f"{gate.verdict}; regime={regime}; tier={tier}"
     return Decision(symbol, action, gate.verdict, side, rationale, confirmations)

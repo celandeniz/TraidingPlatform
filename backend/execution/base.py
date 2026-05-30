@@ -1,21 +1,32 @@
-"""Execution adapter interface — the seam that keeps paper/live swappable.
+"""Execution adapter interface — the seam that keeps paper/live/crypto swappable.
 
-Phase 1 ships only a paper adapter (Alpaca paper). A live adapter implements the
-same Protocol later; the rest of the system stays mode-agnostic.
+Every broker (Alpaca paper, Alpaca live, ccxt crypto) implements the SAME
+ExecutionAdapter Protocol, so the engine, risk manager, and dashboard stay
+broker-agnostic. The RiskManager (backend/portfolio/risk.py) also implements
+this Protocol by wrapping an inner adapter.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal, Protocol
+from dataclasses import dataclass, field
+from typing import Literal, Optional, Protocol, TypedDict
 
 Side = Literal["buy", "sell"]
+PositionSide = Literal["long", "short"]
+AssetClass = Literal["equity", "crypto"]
 
 
 @dataclass
 class OrderRequest:
     symbol: str
-    side: Side
+    side: Side  # buy | sell = order direction (unchanged, back-compatible)
     qty: float
+    # --- additive fields, all defaulted so existing call sites keep working ---
+    reduce_only: bool = False  # True = close/trim only, never open or flip
+    position_side: Optional[PositionSide] = None  # opening intent; None = infer from side
+    asset_class: AssetClass = "equity"
+    client_order_id: Optional[str] = None  # idempotency / reconciliation
+    time_in_force: str = "day"  # "day" for equity, "gtc" for crypto
+    meta: dict = field(default_factory=dict)  # leverage, decision id, tags
 
 
 @dataclass
@@ -29,5 +40,22 @@ class OrderResult:
     detail: str = ""
 
 
+class PositionView(TypedDict):
+    """The position shape the dashboard already consumes. Every adapter returns
+    a list of these so the frontend never changes regardless of broker."""
+
+    symbol: str
+    qty: float
+    side: str  # "long" | "short"
+    avg_entry: float
+    current: Optional[float]
+    unrealized_pl: float
+    unrealized_plpc: float
+
+
 class ExecutionAdapter(Protocol):
     def submit(self, req: OrderRequest) -> OrderResult: ...
+
+    def list_positions(self) -> list[PositionView]: ...
+
+    def account_summary(self) -> dict: ...

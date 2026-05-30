@@ -31,7 +31,14 @@ def test_allow_high_vol_buy_is_call():
 
 def test_allow_core_sell_is_none():
     d = decide("AAPL", "sell", tier="core", regime="range", gate=_gate("ALLOW"))
-    assert d.action == "NONE"  # no spot short in v1
+    assert d.action == "NONE"  # short disabled by default (needs margin acct)
+
+
+def test_allow_core_sell_is_short_when_enabled():
+    d = decide("AAPL", "sell", tier="core", regime="range", gate=_gate("ALLOW"),
+               allow_spot_short=True)
+    assert d.action == "SPOT_SHORT"
+    assert d.side == "sell"
 
 
 def test_fundamental_veto_when_enabled():
