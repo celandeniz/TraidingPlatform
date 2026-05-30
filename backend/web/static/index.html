@@ -62,6 +62,8 @@
   @keyframes fl{from{background:rgba(74,163,255,.22)}to{background:transparent}}
   .muted{color:var(--dim);padding:16px;text-align:center}
   .full{grid-column:1/-1}
+  .qty{width:54px;background:var(--chip);color:var(--text);border:1px solid var(--line);
+    border-radius:6px;padding:4px 6px}
 </style>
 </head>
 <body>
@@ -77,14 +79,13 @@
 </header>
 
 <div class="controls">
-  <button class="primary" id="replayBtn">▶ Replay recent bars (live-like)</button>
-  <button id="refreshBtn">↻ Refresh positions</button>
+  <button type="button" class="primary" id="replayBtn">▶ Replay recent bars (live-like)</button>
+  <button type="button" id="refreshBtn">↻ Refresh positions</button>
   <span class="stat" id="replayState"></span>
   <div class="spacer"></div>
-  <span class="stat">Order qty
-    <input id="qty" type="number" value="1" min="1" step="1"
-      style="width:54px;background:var(--chip);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:4px 6px"/>
-  </span>
+  <label class="stat" for="qty">Order qty
+    <input id="qty" class="qty" type="number" value="1" min="1" step="1" title="Order quantity (shares)"/>
+  </label>
 </div>
 
 <main>
