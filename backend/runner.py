@@ -29,13 +29,20 @@ MAX_WINDOW = 240  # bars kept in memory per symbol
 
 
 class Engine:
-    def __init__(self, config: dict, provider: AlpacaProvider):
+    def __init__(self, config: dict, provider: AlpacaProvider, executor=None,
+                 position_manager=None):
         self.config = config
         self.provider = provider
         self.signal_strategies = build_signal_strategies(config)
         self.confirmation_strategies = build_confirmation_strategies(config)
         self.windows: dict[str, pd.DataFrame] = {}
         self.regime_cfg = config.get("regime", {})
+        # Execution is opt-in: active only when risk.enabled AND a manager is given.
+        # Default (Phase 1/2) = None => detect+log signals only, no orders.
+        self.executor = executor
+        self.position_manager = position_manager
+        self.risk_enabled = bool(config.get("risk", {}).get("enabled", False)) and \
+            position_manager is not None
 
     # ---- warmup -----------------------------------------------------------
     def warmup(self, symbols: list[str]) -> None:
@@ -68,6 +75,9 @@ class Engine:
         )
         win = pd.concat([self.windows.get(symbol, row.iloc[0:0]), row])
         self.windows[symbol] = win.tail(MAX_WINDOW)
+        # Manage any open position on this symbol first (exit rules), then evaluate.
+        if self.risk_enabled:
+            self.position_manager.manage(symbol, float(bar["close"]))
         self._evaluate(symbol, bar)
 
     def _evaluate(self, symbol: str, bar: dict) -> None:
@@ -90,6 +100,38 @@ class Engine:
                 continue
             confirmations = [c.confirm(sig.side, ctx) for c in self.confirmation_strategies]
             self._emit(symbol, bar, strat.name, sig, regime, confirmations)
+            if self.risk_enabled:
+                self._maybe_open(symbol, bar, sig, regime)
+
+    def _maybe_open(self, symbol, bar, sig, regime) -> None:
+        """Risk-gated automated open: catalyst gate -> decide(core/spot) -> size -> open.
+
+        Tier is forced to 'core' so automation only ever takes SPOT long/short
+        (options stay manual). Short requires risk.allow_equity_short. All orders
+        pass through the RiskManager (kill-switch, caps, market hours) and the
+        PositionManager (at most one position per symbol).
+        """
+        from .portfolio.risk import position_size
+        from .research.catalyst_gate import evaluate as gate_eval
+        from .research.decision_layer import decide
+
+        rcfg = self.config.get("risk", {})
+        gate = gate_eval(sig.side, regime=regime, news_ages_minutes=[],
+                         earnings_in_days=None, gap_pct=None)
+        decision = decide(symbol, sig.side, tier="core", regime=regime, gate=gate,
+                          allow_spot_short=rcfg.get("allow_equity_short", False))
+        if decision.action not in ("SPOT_LONG", "SPOT_SHORT"):
+            return
+        mark = float(bar["close"])
+        acct = self.executor.account_summary() if self.executor else {}
+        equity = float(acct.get("equity", 0) or 0)
+        stop_pct = self.config.get("exits", {}).get("stop_loss_pct", 1.0)
+        stop = mark * (1 - stop_pct / 100.0) if sig.side == "buy" else mark * (1 + stop_pct / 100.0)
+        qty = position_size(equity, mark, stop, rcfg.get("risk_per_trade_pct", 0.5),
+                            rcfg.get("max_position_pct", 20.0))
+        if qty <= 0:
+            return
+        self.position_manager.open_from_decision(decision, mark, qty)
 
     def _emit(self, symbol, bar, strategy_name, sig, regime, confirmations) -> None:
         event = {

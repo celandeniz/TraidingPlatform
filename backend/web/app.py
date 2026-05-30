@@ -21,9 +21,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
+from ..brokers import build_routing_executor
 from ..data.alpaca_provider import AlpacaProvider
 from ..execution.base import OrderRequest
-from ..execution.paper import PaperExecutionAdapter
+from ..portfolio.risk import RiskConfig, RiskManager
 from ..research.copilot_agent import CopilotAgent
 from ..research.llm import ClaudeClient
 from ..research.news_provider import AlpacaNewsProvider
@@ -39,12 +40,31 @@ _config = get_config()
 _provider = AlpacaProvider(
     _settings.alpaca_api_key, _settings.alpaca_api_secret, feed=_settings.alpaca_data_feed
 )
-_executor = PaperExecutionAdapter(_settings.alpaca_api_key, _settings.alpaca_api_secret)
 
-# Phase 2 research layer (lazy: only built if an Anthropic key is present).
+# Routing executor: equity (Alpaca paper) + crypto (ccxt sandbox) per config.
+# Wrapped in a RiskManager when risk.enabled so the kill-switch governs orders.
+_routing = build_routing_executor(_settings, _config)
+_risk_cfg_raw = _config.get("risk", {})
+if _risk_cfg_raw.get("enabled", False):
+    _executor = RiskManager(
+        _routing,
+        RiskConfig(
+            enabled=True,
+            risk_per_trade_pct=_risk_cfg_raw.get("risk_per_trade_pct", 0.5),
+            max_concurrent_positions=_risk_cfg_raw.get("max_concurrent_positions", 5),
+            max_position_pct=_risk_cfg_raw.get("max_position_pct", 20.0),
+            max_daily_loss_pct=_risk_cfg_raw.get("max_daily_loss_pct", 3.0),
+        ),
+    )
+else:
+    _executor = _routing
+
+# Phase 2/3 research layer (lazy: only built if an Anthropic key is present).
 _copilot: CopilotAgent | None = None
+_claude: ClaudeClient | None = None
+_news: AlpacaNewsProvider | None = None
 _rcfg = _config.get("research", {})
-if _settings.anthropic_api_key and _rcfg.get("copilot", {}).get("enabled", False):
+if _settings.anthropic_api_key and _rcfg.get("enabled", True):
     _llmcfg = _rcfg.get("llm", {})
     _claude = ClaudeClient(
         _settings.anthropic_api_key,
@@ -54,9 +74,10 @@ if _settings.anthropic_api_key and _rcfg.get("copilot", {}).get("enabled", False
         daily_cost_cap_usd=_llmcfg.get("daily_cost_cap_usd", 5.0),
     )
     _news = AlpacaNewsProvider(_settings.alpaca_api_key, _settings.alpaca_api_secret)
-    _copilot = CopilotAgent(
-        _claude, _news, cache_minutes=_rcfg.get("copilot", {}).get("cache_minutes", 10)
-    )
+    if _rcfg.get("copilot", {}).get("enabled", False):
+        _copilot = CopilotAgent(
+            _claude, _news, cache_minutes=_rcfg.get("copilot", {}).get("cache_minutes", 10)
+        )
 
 
 class Hub:
@@ -216,6 +237,52 @@ async def copilot(symbol: str) -> dict:
     }
     await hub.broadcast(event)
     return event
+
+
+@app.get("/api/committee/{symbol}")
+async def committee(symbol: str) -> dict:
+    """On-demand TradingAgents-style committee verdict for one symbol (Claude)."""
+    ccfg = _rcfg.get("committee", {})
+    if _claude is None or not ccfg.get("enabled", False):
+        return {"type": "committee_update", "symbol": symbol, "available": False,
+                "summary": "Committee disabled (set ANTHROPIC_API_KEY and "
+                           "research.committee.enabled).", "side": "pass"}
+    import asyncio as _a
+
+    from ..research.agents.committee import run_committee
+    from ..research.catalyst_gate import evaluate as gate_eval
+
+    sym = symbol.upper()
+
+    def _run():
+        headlines = [h.headline for h in _news.recent_headlines(sym, limit=3)] if _news else []
+        gate = gate_eval("buy", regime="range", news_ages_minutes=[],
+                         earnings_in_days=None, gap_pct=None)
+        return run_committee(_claude, sym, "buy", context=f"On-demand review of {sym}.",
+                             headlines=headlines, gate=gate, bb_meta={}, cfg=ccfg)
+
+    v = await _a.to_thread(_run)
+    event = {
+        "type": "committee_update", "symbol": v.symbol, "available": v.available,
+        "side": v.side, "confidence": v.confidence, "rationale": v.rationale,
+        "rounds": v.rounds_run, "cost_usd": round(v.cost_usd, 4),
+        "analysts": [{"role": a.role, "side": a.side, "confidence": a.confidence}
+                     for a in v.analyst_reports],
+        "debate": [{"side": t.side, "round": t.round, "argument": t.argument}
+                   for t in v.debate],
+    }
+    await hub.broadcast(event)
+    return event
+
+
+@app.post("/api/kill_switch")
+async def kill_switch() -> dict:
+    """Manually engage the risk kill-switch — blocks new opens (closes still allowed)."""
+    if isinstance(_executor, RiskManager):
+        _executor.engage_kill_switch("manual (dashboard)")
+        await hub.broadcast({"type": "kill", "engaged": True, "reason": "manual"})
+        return {"engaged": True}
+    return {"engaged": False, "detail": "risk manager not active (risk.enabled=false)"}
 
 
 @app.websocket("/ws")
