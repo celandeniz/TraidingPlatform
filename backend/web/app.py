@@ -26,7 +26,7 @@ from ..data.alpaca_provider import AlpacaProvider
 from ..execution.base import OrderRequest
 from ..portfolio.risk import RiskConfig, RiskManager
 from ..research.copilot_agent import CopilotAgent
-from ..research.llm import ClaudeClient
+from ..research.llm_factory import build_llm_client
 from ..research.news_provider import AlpacaNewsProvider
 from ..runner import Engine
 from ..settings import get_config, get_settings
@@ -59,25 +59,21 @@ if _risk_cfg_raw.get("enabled", False):
 else:
     _executor = _routing
 
-# Phase 2/3 research layer (lazy: only built if an Anthropic key is present).
+# Phase 2/3 research layer. The LLM client is provider-agnostic: local Ollama by
+# default (no key needed), or Claude if configured. Built lazily; None when no
+# provider is usable (then copilot/committee degrade gracefully).
 _copilot: CopilotAgent | None = None
-_claude: ClaudeClient | None = None
+_llm = None  # OllamaClient | ClaudeClient | None
 _news: AlpacaNewsProvider | None = None
 _rcfg = _config.get("research", {})
-if _settings.anthropic_api_key and _rcfg.get("enabled", True):
-    _llmcfg = _rcfg.get("llm", {})
-    _claude = ClaudeClient(
-        _settings.anthropic_api_key,
-        model=_llmcfg.get("model", "claude-haiku-4-5-20251001"),
-        model_deep=_llmcfg.get("model_deep", "claude-opus-4-8"),
-        max_calls_per_min=_llmcfg.get("max_calls_per_min", 20),
-        daily_cost_cap_usd=_llmcfg.get("daily_cost_cap_usd", 5.0),
-    )
-    _news = AlpacaNewsProvider(_settings.alpaca_api_key, _settings.alpaca_api_secret)
-    if _rcfg.get("copilot", {}).get("enabled", False):
-        _copilot = CopilotAgent(
-            _claude, _news, cache_minutes=_rcfg.get("copilot", {}).get("cache_minutes", 10)
-        )
+if _rcfg.get("enabled", True):
+    _llm = build_llm_client(_settings, _config)
+    if _llm is not None:
+        _news = AlpacaNewsProvider(_settings.alpaca_api_key, _settings.alpaca_api_secret)
+        if _rcfg.get("copilot", {}).get("enabled", False):
+            _copilot = CopilotAgent(
+                _llm, _news, cache_minutes=_rcfg.get("copilot", {}).get("cache_minutes", 10)
+            )
 
 
 class Hub:
@@ -243,10 +239,10 @@ async def copilot(symbol: str) -> dict:
 async def committee(symbol: str) -> dict:
     """On-demand TradingAgents-style committee verdict for one symbol (Claude)."""
     ccfg = _rcfg.get("committee", {})
-    if _claude is None or not ccfg.get("enabled", False):
+    if _llm is None or not ccfg.get("enabled", False):
         return {"type": "committee_update", "symbol": symbol, "available": False,
-                "summary": "Committee disabled (set ANTHROPIC_API_KEY and "
-                           "research.committee.enabled).", "side": "pass"}
+                "summary": "Committee disabled (enable research.committee.enabled; "
+                           "needs Ollama running or an Anthropic key).", "side": "pass"}
     import asyncio as _a
 
     from ..research.agents.committee import run_committee
@@ -258,7 +254,7 @@ async def committee(symbol: str) -> dict:
         headlines = [h.headline for h in _news.recent_headlines(sym, limit=3)] if _news else []
         gate = gate_eval("buy", regime="range", news_ages_minutes=[],
                          earnings_in_days=None, gap_pct=None)
-        return run_committee(_claude, sym, "buy", context=f"On-demand review of {sym}.",
+        return run_committee(_llm, sym, "buy", context=f"On-demand review of {sym}.",
                              headlines=headlines, gate=gate, bb_meta={}, cfg=ccfg)
 
     v = await _a.to_thread(_run)

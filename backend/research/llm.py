@@ -96,11 +96,13 @@ class ClaudeClient:
         deep: bool = False,
         cache_system: bool = True,
         clock=time.monotonic,
+        use_case: str | None = None,  # accepted for provider parity; Claude uses `deep`
     ) -> dict:
         """Force Claude to emit one tool call matching tool_schema; return its input.
 
         The system prompt is marked cacheable so repeated calls with the same system
-        (same agent) reuse the cached prefix.
+        (same agent) reuse the cached prefix. `use_case` is ignored here (Claude
+        selects model via `deep`); it is honored by the local Ollama client.
         """
         self._precheck(clock())
         model = self.model_deep if deep else self.model

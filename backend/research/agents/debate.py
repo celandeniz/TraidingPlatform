@@ -55,6 +55,7 @@ def run_debate(
             out = client.structured(
                 system=system, user=user, tool_name="argue",
                 tool_schema=DEBATE_SCHEMA, max_tokens=300, deep=deep,
+                use_case="general",
             )
             transcript.append(DebateTurn(
                 side=role, round=r,

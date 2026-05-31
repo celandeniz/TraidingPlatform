@@ -135,7 +135,22 @@ research:
       contrarian: 1.2
       news_technical: 1.0
   llm:
-    model: claude-haiku-4-5-20251001   # cheap tier for high-volume layers
-    model_deep: claude-opus-4-8        # used for persona consensus / deep research
+    provider: ollama                   # ollama (local, default) | claude
+    # Claude settings (used when provider=claude, or as fallback)
+    model: claude-haiku-4-5-20251001
+    model_deep: claude-opus-4-8
     max_calls_per_min: 20
     daily_cost_cap_usd: 5.0
+    # Local Ollama settings (default provider). Per-use-case model routing:
+    # the tool picks the best local model for each task automatically.
+    ollama:
+      host: http://localhost:11434
+      default_use_case: general
+      deep_use_case: reasoning
+      request_timeout: 120
+      models:
+        general: qwen3:14b             # best general
+        fast: qwen3:8b                 # faster general
+        coding: qwen2.5-coder:14b      # coding
+        reasoning: deepseek-r1:14b     # reasoning
+        lightweight: gemma3:12b        # lightweight

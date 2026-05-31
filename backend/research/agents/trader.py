@@ -25,6 +25,7 @@ def run_trader(
     out = client.structured(
         system=_SYSTEM, user=user, tool_name="trade_decision",
         tool_schema=TRADER_SCHEMA, max_tokens=350, deep=deep,
+        use_case="reasoning",
     )
     return TraderView(
         side=str(out.get("side", "pass")),

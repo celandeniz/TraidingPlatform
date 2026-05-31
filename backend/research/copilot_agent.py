@@ -53,6 +53,7 @@ class CopilotAgent:
             out = self._client.structured(
                 system=_SYSTEM, user=user,
                 tool_name="why_moving", tool_schema=_SCHEMA, max_tokens=300,
+                use_case="general",
             )
             ctx = ResearchContext(
                 symbol=symbol,

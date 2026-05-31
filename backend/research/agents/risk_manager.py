@@ -30,6 +30,7 @@ def run_risk(client: ClaudeClient, trader: TraderView, use_llm: bool) -> tuple[s
             user=f"Trader: side={trader.side} conf={trader.confidence:.2f} "
                  f"rationale={trader.rationale} risk={trader.key_risk}\nReview.",
             tool_name="risk_review", tool_schema=RISK_SCHEMA, max_tokens=200,
+            use_case="lightweight",
         )
         approve = bool(out.get("approve", True))
         adj = max(0.0, min(float(out.get("adjusted_confidence", trader.confidence)),

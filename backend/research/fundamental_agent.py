@@ -53,6 +53,7 @@ class FundamentalAgent:
                 tool_name="fundamental_tilt",
                 tool_schema=_SCHEMA,
                 max_tokens=300,
+                use_case="general",
             )
             result = FundamentalScore(
                 score=max(-1.0, min(1.0, float(out.get("score", 0.0)))),

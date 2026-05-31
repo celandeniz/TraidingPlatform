@@ -27,7 +27,8 @@ class Persona:
     def __init__(self, client: ClaudeClient):
         self._client = client
 
-    def analyze(self, symbol: str, context: str, *, deep: bool = False) -> PersonaVote:
+    def analyze(self, symbol: str, context: str, *, deep: bool = False,
+                use_case: str = "fast") -> PersonaVote:
         try:
             out = self._client.structured(
                 system=self.system,
@@ -36,6 +37,7 @@ class Persona:
                 tool_schema=VOTE_SCHEMA,
                 max_tokens=250,
                 deep=deep,
+                use_case=use_case,
             )
             return PersonaVote(
                 name=self.name,
