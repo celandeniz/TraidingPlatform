@@ -308,22 +308,81 @@ async def backtest(body: BacktestBody) -> dict:
             scenario=f"{body.symbol}|{body.timeframe}|{body.strategy}",
         )
         analysis = analyze_results([res], _llm)
-        return res, analysis
+        return df, res, analysis
 
     try:
-        res, analysis = await _a.to_thread(_run)
+        df, res, analysis = await _a.to_thread(_run)
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "detail": str(exc)}
+
+    # Candles + trade markers for the UI chart. Timestamps are epoch seconds
+    # (lightweight-charts format). entry/exit indices map to the df index.
+    def _epoch(ts):
+        return int(ts.timestamp())
+
+    candles = [
+        {"time": _epoch(ts), "open": float(r.open), "high": float(r.high),
+         "low": float(r.low), "close": float(r.close)}
+        for ts, r in df.iterrows()
+    ]
+    idx = df.index
+    markers = []
+    for t in res.trades:
+        markers.append({"time": _epoch(idx[t.entry_idx]), "kind": "entry",
+                        "side": t.side, "price": round(t.entry_px, 2)})
+        markers.append({"time": _epoch(idx[t.exit_idx]), "kind": "exit",
+                        "side": t.side, "price": round(t.exit_px, 2),
+                        "reason": t.reason, "ret_pct": round(t.ret_pct, 2)})
+    trades = [
+        {"side": t.side, "entry_time": _epoch(idx[t.entry_idx]),
+         "exit_time": _epoch(idx[t.exit_idx]), "entry_px": round(t.entry_px, 2),
+         "exit_px": round(t.exit_px, 2), "bars_held": t.bars_held,
+         "reason": t.reason, "ret_pct": round(t.ret_pct, 2)}
+        for t in res.trades
+    ]
     return {
-        "ok": True, "scenario": res.scenario, "n_trades": res.n_trades,
+        "ok": True, "scenario": res.scenario, "symbol": body.symbol.upper(),
+        "n_trades": res.n_trades,
         "win_rate": round(res.win_rate, 1), "total_return_pct": round(res.total_return_pct, 2),
         "profit_factor": res.profit_factor, "max_drawdown_pct": round(res.max_drawdown_pct, 1),
         "sharpe": res.sharpe, "buy_hold_pct": round(res.buy_hold_pct, 2),
         "excess_vs_buy_hold": round(res.excess_vs_buy_hold, 2),
         "exposure_pct": round(res.exposure_pct, 1), "error": res.error,
+        "candles": candles, "markers": markers, "trades": trades,
         "ai": {"verdict": analysis.get("verdict"), "caveats": analysis.get("caveats"),
                "available": analysis.get("available")},
     }
+
+
+@app.get("/api/backtest/scenarios")
+async def backtest_scenarios() -> dict:
+    """Return the saved 250-scenario month grid (logs/backtest_month_30d.csv)."""
+    import csv as _csv
+
+    from ..settings import REPO_DIR
+
+    path = REPO_DIR / "logs" / "backtest_month_30d.csv"
+    if not path.exists():
+        return {"ok": False, "detail": "Run `python -m backend.backtest.run_month` first.",
+                "rows": []}
+    rows = []
+    with open(path, newline="", encoding="utf-8") as fh:
+        for r in _csv.DictReader(fh):
+            try:
+                rows.append({
+                    "scenario": r["scenario"], "n_trades": int(float(r["n_trades"])),
+                    "win_rate": round(float(r["win_rate"]), 1),
+                    "total_return_pct": round(float(r["total_return_pct"]), 2),
+                    "profit_factor": round(float(r["profit_factor"]), 2),
+                    "max_drawdown_pct": round(float(r["max_drawdown_pct"]), 1),
+                    "sharpe": round(float(r["sharpe"]), 2),
+                    "buy_hold_pct": round(float(r["buy_hold_pct"]), 2),
+                    "excess_vs_buy_hold": round(float(r["excess_vs_buy_hold"]), 2),
+                })
+            except (ValueError, KeyError):
+                continue
+    rows.sort(key=lambda x: x["excess_vs_buy_hold"], reverse=True)
+    return {"ok": True, "count": len(rows), "rows": rows}
 
 
 @app.get("/api/agent/roles")
