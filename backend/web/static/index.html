@@ -90,6 +90,10 @@
   .bt-tt td{padding:5px 8px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
   .bt-tt tr:hover td{background:rgba(255,255,255,.03)}
   #scTable{max-height:420px;overflow:auto}
+  .selbadge{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;
+    width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%}
+  .selbadge.ok{background:rgba(39,215,150,.18);color:var(--green)}
+  .selbadge.no{background:rgba(255,92,112,.16);color:var(--red)}
 </style>
 </head>
 <body>
@@ -184,6 +188,15 @@
   </section>
 
   <section class="card full">
+    <h2>Symbol selection — trade only OOS-robust names</h2>
+    <div class="bt-controls">
+      <button type="button" class="primary" id="selRun">Run selection (all M7)</button>
+      <span class="stat" id="selState"></span>
+    </div>
+    <div id="selResult"><div class="muted">Runs regime-filtered walk-forward per symbol; whitelists only the ones that beat buy-and-hold out-of-sample. Watchlist rows get a TRADABLE / EXCLUDED badge.</div></div>
+  </section>
+
+  <section class="card full">
     <h2>Walk-forward — out-of-sample validation (honest overfit test)</h2>
     <div class="bt-controls">
       <button type="button" class="primary" id="wfRun">Run walk-forward</button>
@@ -246,7 +259,9 @@ function buildGrid(){
   const g=$("#grid"); g.innerHTML="";
   UNIVERSE.forEach(sym=>{
     const tr=document.createElement("tr"); tr.id="r_"+sym;
-    const symCell=el("td",{cls:"sym",text:sym});
+    const symCell=el("td",{cls:"sym"});
+    symCell.appendChild(el("span",{text:sym}));
+    symCell.appendChild(el("span",{id:"sel_"+sym}));  // selection badge slot
     symCell.style.cursor="pointer";
     symCell.title="Click to chart this symbol";
     symCell.addEventListener("click",()=>focusSymbol(sym));
@@ -540,6 +555,40 @@ function runScenario(scenario){
   $("#btStrat").value=strat; $("#btTf").value=tf; $("#btTp").value=tp; $("#btSl").value=sl;
   $("#btchart").scrollIntoView({behavior:"smooth"});
   $("#btRun").click();
+}
+
+// ---- Symbol selection panel ----
+$("#selRun").onclick=async()=>{
+  $("#selState").textContent="running walk-forward on all 7 M7… (takes ~1 min)";
+  try{
+    const r=await fetch("/api/select",{method:"POST"});
+    renderSelection(await r.json());
+  }catch(err){ $("#selResult").textContent="Selection error: "+err; }
+  $("#selState").textContent="";
+};
+function renderSelection(s){
+  const c=$("#selResult"); c.textContent="";
+  if(!s.ok){ c.appendChild(el("div",{cls:"muted",text:"Selection failed: "+(s.detail||"?")})); return; }
+  c.appendChild(el("div",{cls:"bt-ai-k",
+    text:"Tradable: "+(s.tradable.join(", ")||"NONE")+"  |  Excluded: "+(s.excluded.join(", ")||"none")}));
+  c.appendChild(el("div",{cls:"bt-ai cp-hl",
+    text:"Portfolio avg OOS — all symbols: "+s.all_avg_oos+"%  vs  tradable only: "+s.tradable_avg_oos+"%"}));
+  const tbl=el("table",{cls:"bt-tt"});
+  tbl.appendChild(el("tr",{},["Symbol","Verdict","Avg OOS%","Beat B&H","Why"].map(h=>el("th",{text:h}))));
+  s.verdicts.sort((a,b)=>b.avg_oos_return-a.avg_oos_return).forEach(v=>{
+    tbl.appendChild(el("tr",{},[
+      el("td",{cls:"sym",text:v.symbol}),
+      el("td",{},[pillEl(v.tradable?"buy":"none", v.tradable?"TRADABLE":"EXCLUDED")]),
+      el("td",{cls:"pl "+(v.avg_oos_return>=0?"pos":"neg"),text:v.avg_oos_return+""}),
+      el("td",{text:v.oos_beat_bh_folds+"/"+v.n_folds}),
+      el("td",{text:v.reason}),
+    ]));
+    // update the watchlist badge
+    const slot=$("#sel_"+v.symbol);
+    if(slot){ slot.textContent=""; slot.appendChild(
+      el("span",{cls:"selbadge "+(v.tradable?"ok":"no"),text:v.tradable?"✓":"✕"})); }
+  });
+  c.appendChild(tbl);
 }
 
 // ---- Walk-forward panel ----

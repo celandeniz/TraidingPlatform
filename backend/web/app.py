@@ -456,6 +456,32 @@ async def walkforward_run(body: WalkForwardBody) -> dict:
     }
 
 
+@app.post("/api/select")
+async def select_symbols_endpoint() -> dict:
+    """Run regime-filtered walk-forward per M7 symbol; return tradable whitelist."""
+    import asyncio as _a
+
+    from ..backtest.selector import select_symbols
+
+    def _run():
+        data = {sym: _provider.get_recent_bars(sym, "5m", 3000)
+                for sym in _config["universe"]}
+        return select_symbols(data, n_folds=4)
+
+    try:
+        sel = await _a.to_thread(_run)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "detail": str(exc)}
+    return {
+        "ok": True, "tradable": sel.tradable, "excluded": sel.excluded,
+        "all_avg_oos": sel.all_avg_oos, "tradable_avg_oos": sel.tradable_avg_oos,
+        "verdicts": [{"symbol": v.symbol, "tradable": v.tradable,
+                      "avg_oos_return": v.avg_oos_return,
+                      "oos_beat_bh_folds": v.oos_beat_bh_folds, "n_folds": v.n_folds,
+                      "reason": v.reason} for v in sel.verdicts],
+    }
+
+
 @app.get("/api/agent/roles")
 async def agent_roles() -> dict:
     """List business-agent roles and the local model each auto-resolves to."""
