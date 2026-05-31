@@ -24,7 +24,7 @@ from ..strategy.regime import detect as detect_regime
 SignalFn = Callable[[pd.DataFrame], dict]
 
 
-def range_only(fn: SignalFn, *, ema_period: int = 50, slope_threshold: float = 0.0008) -> SignalFn:
+def range_only(fn: SignalFn, *, ema_period: int = 50, slope_threshold: float = 0.0002) -> SignalFn:
     """Mean-reversion: only fire when the regime is 'range'."""
     def wrapped(df: pd.DataFrame) -> dict:
         sig = fn(df)
@@ -37,7 +37,7 @@ def range_only(fn: SignalFn, *, ema_period: int = 50, slope_threshold: float = 0
     return wrapped
 
 
-def with_trend(fn: SignalFn, *, ema_period: int = 50, slope_threshold: float = 0.0008) -> SignalFn:
+def with_trend(fn: SignalFn, *, ema_period: int = 50, slope_threshold: float = 0.0002) -> SignalFn:
     """Momentum/breakout: keep only the signal aligned with the trend direction."""
     def wrapped(df: pd.DataFrame) -> dict:
         sig = fn(df)

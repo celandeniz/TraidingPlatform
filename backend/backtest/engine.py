@@ -67,6 +67,13 @@ class BacktestResult:
     buy_hold_pct: float = 0.0       # benchmark over the same window
     excess_vs_buy_hold: float = 0.0
     exposure_pct: float = 0.0       # fraction of bars in a position
+    # statistical significance of the per-trade returns (guard against noise)
+    p_value: float = 1.0
+    t_stat: float = 0.0
+    ci_low_pct: float = 0.0         # bootstrap 95% CI on mean per-trade return
+    ci_high_pct: float = 0.0
+    significant: bool = False       # p<0.05 AND n>=20 AND CI excludes 0
+    significance_label: str = ""
     trades: list = field(default_factory=list)
     error: str = ""
 
@@ -216,6 +223,8 @@ def _summarize(trades, equity, equity_curve, close, n, bars_in_pos, scenario) ->
         max_dd = max(max_dd, (peak - e) / peak)
     total_ret = (equity - 1.0) * 100.0
     bh = (close[-1] / close[0] - 1.0) * 100.0
+    from .stats import significance
+    sg = significance(rets)
     return BacktestResult(
         scenario=scenario, n_trades=len(trades),
         win_rate=len(wins) / len(trades) * 100.0,
@@ -225,5 +234,8 @@ def _summarize(trades, equity, equity_curve, close, n, bars_in_pos, scenario) ->
         sharpe=round(sharpe, 3), buy_hold_pct=bh,
         excess_vs_buy_hold=total_ret - bh,
         exposure_pct=bars_in_pos / n * 100.0,
+        p_value=sg.p_value, t_stat=sg.t_stat, ci_low_pct=sg.ci_low_pct,
+        ci_high_pct=sg.ci_high_pct, significant=sg.significant,
+        significance_label=sg.label,
         trades=trades,
     )

@@ -11,10 +11,12 @@ from .engine import BacktestResult
 
 _SYSTEM = (
     "You are a quantitative trading analyst. You are given REAL backtest results "
-    "(no lookahead, costs included). Pick the most ROBUST configurations — favor "
-    "consistency (profit factor, win rate, low drawdown, enough trades, positive "
-    "excess vs buy-and-hold) over a single high return, which is likely overfit. "
-    "Be honest: if few configs beat buy-and-hold, say so. Not investment advice."
+    "(no lookahead, costs included) WITH statistical significance (p-value, sample "
+    "size n). Pick the most ROBUST configurations — favor STATISTICAL SIGNIFICANCE "
+    "(low p-value, n>=20) and consistency (profit factor, low drawdown, positive "
+    "excess vs buy-and-hold) over a single high return, which is likely overfit or "
+    "noise. A high return with n<20 trades or p>0.05 is NOT trustworthy — say so. "
+    "Be honest: if nothing is statistically significant, say it plainly. Not advice."
 )
 
 _SCHEMA = {
@@ -34,16 +36,19 @@ def _digest(results: list[BacktestResult], top_n: int = 15) -> str:
     traded = [r for r in results if r.n_trades > 0 and not r.error]
     profitable = sum(1 for r in traded if r.total_return_pct > 0)
     beat = sum(1 for r in traded if r.excess_vs_buy_hold > 0)
+    sig_count = sum(1 for r in traded if getattr(r, "significant", False))
     lines = [
         f"{len(traded)} scenarios took trades. "
-        f"{profitable} profitable net of costs, {beat} beat buy-and-hold.",
-        "Top by excess-vs-buy-hold (name | trades | win% | ret% | PF | DD% | excess):",
+        f"{profitable} profitable net of costs, {beat} beat buy-and-hold, "
+        f"{sig_count} STATISTICALLY SIGNIFICANT (p<0.05, n>=20).",
+        "Top by excess-vs-buy-hold (name | trades | ret% | PF | excess | p | sig):",
     ]
     top = sorted(traded, key=lambda r: (r.excess_vs_buy_hold, r.profit_factor), reverse=True)[:top_n]
     for r in top:
-        lines.append(f"{r.scenario} | {r.n_trades} | {r.win_rate:.0f} | "
-                     f"{r.total_return_pct:.1f} | {r.profit_factor:.2f} | "
-                     f"{r.max_drawdown_pct:.1f} | {r.excess_vs_buy_hold:.1f}")
+        lines.append(f"{r.scenario} | n={r.n_trades} | {r.total_return_pct:.1f} | "
+                     f"PF{r.profit_factor:.2f} | exc{r.excess_vs_buy_hold:.1f} | "
+                     f"p={getattr(r, 'p_value', 1.0):.3f} | "
+                     f"{'SIG' if getattr(r, 'significant', False) else 'noise'}")
     return "\n".join(lines)
 
 
