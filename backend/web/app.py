@@ -272,6 +272,60 @@ async def committee(symbol: str) -> dict:
     return event
 
 
+class BacktestBody(BaseModel):
+    symbol: str = "MSFT"
+    timeframe: str = "5m"
+    strategy: str = "spike_fade"   # spike_fade | ema_momentum | donchian
+    take_profit_pct: float = 2.0
+    stop_loss_pct: float = 1.5
+    bars: int = 2000
+
+
+@app.post("/api/backtest")
+async def backtest(body: BacktestBody) -> dict:
+    """Run ONE realistic backtest (no lookahead, costs in) on real bars; AI-analyzed."""
+    import asyncio as _a
+
+    from ..backtest.analyze import analyze_results
+    from ..backtest.engine import CostModel, ExitParams, run_backtest
+    from ..strategy.donchian_breakout import generate as donch
+    from ..strategy.ema_momentum import generate as ema
+    from ..strategy.spike_fade import generate as spike
+
+    fns = {
+        "spike_fade": lambda df: spike(df, zscore_window=20, lookback_k=2, z_entry=2.0),
+        "ema_momentum": lambda df: ema(df, fast=12, slow=26),
+        "donchian": lambda df: donch(df, channel=20),
+    }
+    fn = fns.get(body.strategy, fns["spike_fade"])
+
+    def _run():
+        df = _provider.get_recent_bars(body.symbol.upper(), body.timeframe, body.bars)
+        res = run_backtest(
+            df, fn,
+            exits=ExitParams(body.take_profit_pct, body.stop_loss_pct, 0.8, 90, True),
+            costs=CostModel(1.0, 2.0), warmup=35,
+            scenario=f"{body.symbol}|{body.timeframe}|{body.strategy}",
+        )
+        analysis = analyze_results([res], _llm)
+        return res, analysis
+
+    try:
+        res, analysis = await _a.to_thread(_run)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "detail": str(exc)}
+    return {
+        "ok": True, "scenario": res.scenario, "n_trades": res.n_trades,
+        "win_rate": round(res.win_rate, 1), "total_return_pct": round(res.total_return_pct, 2),
+        "profit_factor": res.profit_factor, "max_drawdown_pct": round(res.max_drawdown_pct, 1),
+        "sharpe": res.sharpe, "buy_hold_pct": round(res.buy_hold_pct, 2),
+        "excess_vs_buy_hold": round(res.excess_vs_buy_hold, 2),
+        "exposure_pct": round(res.exposure_pct, 1), "error": res.error,
+        "ai": {"verdict": analysis.get("verdict"), "caveats": analysis.get("caveats"),
+               "available": analysis.get("available")},
+    }
+
+
 @app.get("/api/agent/roles")
 async def agent_roles() -> dict:
     """List business-agent roles and the local model each auto-resolves to."""

@@ -74,6 +74,15 @@
   .full{grid-column:1/-1}
   .qty{width:54px;background:var(--chip);color:var(--text);border:1px solid var(--line);
     border-radius:6px;padding:4px 6px}
+  .bt-controls{display:flex;gap:12px;align-items:center;padding:10px 14px;flex-wrap:wrap}
+  #btResult{padding:6px 14px 14px}
+  .bt-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 10px}
+  .bt-m{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .bt-k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim)}
+  .bt-v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
+  .bt-ai-k{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);margin-top:6px}
+  .bt-ai{line-height:1.5;margin-top:4px}
+  #tvchart{border-top:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -120,7 +129,35 @@
 
   <section class="card">
     <h2>Why is it moving? (AI co-pilot)</h2>
-    <div id="copilot"><div class="muted">Click “Why?” on a symbol for an AI catalyst read.</div></div>
+    <div id="copilot"><div class="muted">Click a symbol row, then “Why?” for an AI catalyst read.</div></div>
+  </section>
+
+  <section class="card full">
+    <h2>Chart — <span id="chartSym">MSFT</span> (TradingView)</h2>
+    <div id="tvchart" style="height:420px"></div>
+  </section>
+
+  <section class="card">
+    <h2>Backtest (realistic — no lookahead, costs in)</h2>
+    <div class="bt-controls">
+      <label class="stat" for="btStrat">Strategy
+        <select id="btStrat" class="qty" style="width:130px">
+          <option value="spike_fade">spike_fade</option>
+          <option value="ema_momentum">ema_momentum</option>
+          <option value="donchian">donchian</option>
+        </select>
+      </label>
+      <label class="stat" for="btTf">TF
+        <select id="btTf" class="qty" style="width:60px">
+          <option>5m</option><option>15m</option><option>1h</option>
+        </select>
+      </label>
+      <span class="stat">TP%<input id="btTp" class="qty" type="number" value="2.0" step="0.1" title="take profit %"></span>
+      <span class="stat">SL%<input id="btSl" class="qty" type="number" value="1.5" step="0.1" title="stop loss %"></span>
+      <button type="button" class="primary" id="btRun">Run backtest</button>
+      <span class="stat" id="btState"></span>
+    </div>
+    <div id="btResult"><div class="muted">Pick a symbol + params, then “Run backtest”. Uses real bars; AI gives an honest read.</div></div>
   </section>
 
   <section class="card full">
@@ -128,6 +165,7 @@
     <div id="tape"><div class="muted">Waiting for signals… hit “Replay recent bars”.</div></div>
   </section>
 </main>
+<script src="https://s3.tradingview.com/tv.js"></script>
 
 <script>
 const $ = s => document.querySelector(s);
@@ -169,7 +207,11 @@ function buildGrid(){
   const g=$("#grid"); g.innerHTML="";
   UNIVERSE.forEach(sym=>{
     const tr=document.createElement("tr"); tr.id="r_"+sym;
-    tr.appendChild(el("td",{cls:"sym",text:sym}));
+    const symCell=el("td",{cls:"sym",text:sym});
+    symCell.style.cursor="pointer";
+    symCell.title="Click to chart this symbol";
+    symCell.addEventListener("click",()=>focusSymbol(sym));
+    tr.appendChild(symCell);
     tr.appendChild(el("td",{id:"px_"+sym,text:"—"}));
     tr.appendChild(el("td",{id:"z_"+sym,text:"—"}));
     tr.appendChild(el("td",{id:"rsi_"+sym,text:"—"}));
@@ -297,6 +339,58 @@ $("#replayBtn").onclick=async()=>{
 };
 $("#refreshBtn").onclick=loadPositions;
 
+// ---- TradingView chart + symbol focus ----
+let _tv=null, _focused="MSFT";
+function renderChart(sym){
+  if(typeof TradingView==="undefined"){return;}
+  $("#tvchart").innerHTML="";
+  _tv=new TradingView.widget({
+    container_id:"tvchart", symbol:sym, interval:"5", autosize:true,
+    theme:"dark", style:"1", timezone:"Etc/UTC", hide_side_toolbar:true,
+    withdateranges:true, allow_symbol_change:false,
+  });
+}
+function focusSymbol(sym){
+  _focused=sym;
+  $("#chartSym").textContent=sym;
+  renderChart(sym);
+}
+
+// ---- Backtest panel (realistic, AI-analyzed) ----
+$("#btRun").onclick=async()=>{
+  $("#btState").textContent="running on real bars…";
+  const body={symbol:_focused, timeframe:$("#btTf").value, strategy:$("#btStrat").value,
+    take_profit_pct:Number($("#btTp").value), stop_loss_pct:Number($("#btSl").value)};
+  try{
+    const r=await fetch("/api/backtest",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body)});
+    renderBacktest(await r.json());
+  }catch(err){ $("#btResult").textContent="Backtest error: "+err; }
+  $("#btState").textContent="";
+};
+function renderBacktest(b){
+  const c=$("#btResult"); c.textContent="";
+  if(!b.ok){ c.appendChild(el("div",{cls:"muted",text:"Backtest failed: "+(b.detail||b.error||"?")})); return; }
+  const beat=b.excess_vs_buy_hold>0;
+  const grid=el("div",{cls:"bt-metrics"});
+  const m=(k,v,good)=>{const d=el("div",{cls:"bt-m"});d.appendChild(el("div",{cls:"bt-k",text:k}));
+    d.appendChild(el("div",{cls:"bt-v "+(good===undefined?"":good?"pos":"neg"),text:v}));return d;};
+  grid.appendChild(m("Trades", String(b.n_trades)));
+  grid.appendChild(m("Win %", b.win_rate+"%"));
+  grid.appendChild(m("Return", b.total_return_pct+"%", b.total_return_pct>0));
+  grid.appendChild(m("Profit factor", String(b.profit_factor), b.profit_factor>=1));
+  grid.appendChild(m("Max DD", b.max_drawdown_pct+"%"));
+  grid.appendChild(m("Sharpe", String(b.sharpe), b.sharpe>0));
+  grid.appendChild(m("Buy & hold", b.buy_hold_pct+"%"));
+  grid.appendChild(m("Excess vs B&H", b.excess_vs_buy_hold+"%", beat));
+  c.appendChild(grid);
+  if(b.ai&&b.ai.verdict){
+    c.appendChild(el("div",{cls:"bt-ai-k",text:"AI read"+(b.ai.available?" (local model)":" (rule-based)")+":"}));
+    c.appendChild(el("div",{cls:"bt-ai",text:b.ai.verdict}));
+    if(b.ai.caveats) c.appendChild(el("div",{cls:"bt-ai cp-hl",text:"Caveats: "+b.ai.caveats}));
+  }
+}
+
 function connect(){
   const ws=new WebSocket(`ws://${location.host}/ws`);
   ws.onopen=()=>{$("#conn").classList.add("on");$("#connTxt").textContent="live";};
@@ -313,6 +407,7 @@ function connect(){
 }
 connect();
 loadPositions();
+focusSymbol("MSFT");  // initial chart
 </script>
 </body>
 </html>
