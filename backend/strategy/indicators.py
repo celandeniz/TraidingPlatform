@@ -57,3 +57,33 @@ def bollinger(
     upper = mid + std * dev
     lower = mid - std * dev
     return mid, upper, lower
+
+
+def macd(
+    close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Return (macd_line, signal_line, histogram)."""
+    macd_line = ema(close, fast) - ema(close, slow)
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    return macd_line, signal_line, macd_line - signal_line
+
+
+def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """Average True Range (Wilder). Expects columns: high, low, close."""
+    high, low, close = df["high"], df["low"], df["close"]
+    prev_close = close.shift(1)
+    tr = pd.concat([
+        high - low,
+        (high - prev_close).abs(),
+        (low - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    return tr.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
+
+
+def keltner(
+    df: pd.DataFrame, period: int = 20, mult: float = 2.0
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Keltner Channels: (mid, upper, lower) = EMA(close) +/- mult * ATR."""
+    mid = ema(df["close"], period)
+    a = atr(df, period)
+    return mid, mid + mult * a, mid - mult * a

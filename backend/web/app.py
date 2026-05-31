@@ -288,14 +288,24 @@ async def backtest(body: BacktestBody) -> dict:
 
     from ..backtest.analyze import analyze_results
     from ..backtest.engine import CostModel, ExitParams, run_backtest
+    from ..strategy.atr_trend import generate as atr_g
     from ..strategy.donchian_breakout import generate as donch
     from ..strategy.ema_momentum import generate as ema
+    from ..strategy.keltner_breakout import generate as kelt
+    from ..strategy.macd_cross import generate as macd_g
+    from ..strategy.rsi_reversion import generate as rsi_g
     from ..strategy.spike_fade import generate as spike
+    from ..strategy.vwap_reversion import generate as vwap_g
 
     fns = {
         "spike_fade": lambda df: spike(df, zscore_window=20, lookback_k=2, z_entry=2.0),
         "ema_momentum": lambda df: ema(df, fast=12, slow=26),
         "donchian": lambda df: donch(df, channel=20),
+        "rsi_reversion": lambda df: rsi_g(df, period=14),
+        "macd_cross": lambda df: macd_g(df, fast=12, slow=26),
+        "vwap_reversion": lambda df: vwap_g(df, band_pct=1.0),
+        "keltner_breakout": lambda df: kelt(df, period=20, mult=2.0),
+        "atr_trend": lambda df: atr_g(df, period=20, k=1.5),
     }
     fn = fns.get(body.strategy, fns["spike_fade"])
 

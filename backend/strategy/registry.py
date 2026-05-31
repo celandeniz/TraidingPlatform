@@ -6,17 +6,27 @@ strategy: implement it, add it to one of the maps below, and list its key under
 """
 from __future__ import annotations
 
+from .atr_trend import AtrTrendStrategy
 from .base import ConfirmationStrategy, SignalStrategy
 from .bollinger_confluence import BollingerConfluenceStrategy
 from .donchian_breakout import DonchianBreakoutStrategy
 from .ema_momentum import EmaMomentumStrategy
+from .keltner_breakout import KeltnerBreakoutStrategy
+from .macd_cross import MacdCrossStrategy
+from .rsi_reversion import RsiReversionStrategy
 from .spike_fade import SpikeFadeStrategy
 from .volume_confirm import VolumeConfirmStrategy
+from .vwap_reversion import VwapReversionStrategy
 
 SIGNAL_STRATEGIES: dict[str, type] = {
     "spike_fade": SpikeFadeStrategy,
     "ema_momentum": EmaMomentumStrategy,
     "donchian_breakout": DonchianBreakoutStrategy,
+    "rsi_reversion": RsiReversionStrategy,
+    "macd_cross": MacdCrossStrategy,
+    "vwap_reversion": VwapReversionStrategy,
+    "keltner_breakout": KeltnerBreakoutStrategy,
+    "atr_trend": AtrTrendStrategy,
 }
 
 CONFIRMATION_STRATEGIES: dict[str, type] = {

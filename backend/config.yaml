@@ -11,13 +11,19 @@ universe:
   - TSLA
 
 # Which strategies are active. Adding a strategy = register a key + list it here.
-# Signals: spike_fade (mean-reversion), ema_momentum (trend cross),
-#   donchian_breakout (range breakout). Confirmations: bollinger, volume.
+# Mean-reversion: spike_fade, rsi_reversion, vwap_reversion.
+# Trend/breakout: ema_momentum, donchian_breakout, macd_cross, keltner_breakout, atr_trend.
+# Confirmations: bollinger, volume.
 strategies:
   signal:
     - spike_fade
     - ema_momentum
     - donchian_breakout
+    - rsi_reversion
+    - macd_cross
+    - vwap_reversion
+    - keltner_breakout
+    - atr_trend
   confirmations:
     - bollinger
     - volume
@@ -28,6 +34,23 @@ ema_momentum:
   slow: 26
 donchian_breakout:
   channel: 20
+macd_cross:
+  fast: 12
+  slow: 26
+  signal: 9
+keltner_breakout:
+  period: 20
+  mult: 2.0
+atr_trend:
+  period: 20
+  k: 1.5
+# Mean-reversion signal parameters
+rsi_reversion:
+  period: 14
+  oversold: 30
+  overbought: 70
+vwap_reversion:
+  band_pct: 1.0
 volume:
   window: 20
   mult: 1.5

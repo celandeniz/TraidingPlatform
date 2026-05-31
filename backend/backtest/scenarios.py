@@ -14,9 +14,14 @@ from typing import Callable
 import pandas as pd
 
 from .engine import ExitParams
+from ..strategy.atr_trend import generate as atr_gen
 from ..strategy.donchian_breakout import generate as donchian_gen
 from ..strategy.ema_momentum import generate as ema_gen
+from ..strategy.keltner_breakout import generate as keltner_gen
+from ..strategy.macd_cross import generate as macd_gen
+from ..strategy.rsi_reversion import generate as rsi_gen
 from ..strategy.spike_fade import generate as spike_gen
+from ..strategy.vwap_reversion import generate as vwap_gen
 
 
 @dataclass
@@ -67,6 +72,14 @@ def build_scenarios(symbols, timeframes, *, target=250) -> list[Scenario]:
         [("spike_fade", _spike(zw, ze, k), f"sf_z{ze}_w{zw}_k{k}") for (zw, ze, k) in spike_grid]
         + [("ema_momentum", _ema(f, s), f"ema_{f}_{s}") for (f, s) in ema_grid]
         + [("donchian", _donch(ch), f"don_{ch}") for (ch,) in donch_grid]
+        # new strategies
+        + [("rsi_reversion", lambda d, p=p: rsi_gen(d, period=p), f"rsi_{p}") for p in (10, 14)]
+        + [("macd_cross", lambda d, f=f, s=s: macd_gen(d, fast=f, slow=s), f"macd_{f}_{s}")
+           for (f, s) in [(8, 21), (12, 26)]]
+        + [("vwap_reversion", lambda d, b=b: vwap_gen(d, band_pct=b), f"vwap_{b}") for b in (0.8, 1.2)]
+        + [("keltner_breakout", lambda d, m=m: keltner_gen(d, period=20, mult=m), f"kelt_{m}")
+           for m in (1.5, 2.0)]
+        + [("atr_trend", lambda d, k=k: atr_gen(d, period=20, k=k), f"atr_{k}") for k in (1.0, 1.5)]
     )
 
     for (sym, tf, (strat, fn, label), ex) in product(symbols, timeframes, strat_specs, exit_grid):

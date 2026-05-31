@@ -29,8 +29,9 @@ MAX_WINDOW = 240  # bars kept in memory per symbol
 
 # Strategy -> regime alignment (the (A) improvement, validated in walk-forward).
 # Mean-reversion only in range; momentum/breakout only with the trend.
-_MEAN_REVERSION = {"spike_fade"}
-_TREND_FOLLOWING = {"ema_momentum", "donchian_breakout"}
+_MEAN_REVERSION = {"spike_fade", "rsi_reversion", "vwap_reversion"}
+_TREND_FOLLOWING = {"ema_momentum", "donchian_breakout", "macd_cross",
+                    "keltner_breakout", "atr_trend"}
 
 
 def regime_allows(strategy_name: str, side, regime: str) -> bool:

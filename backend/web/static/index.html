@@ -152,15 +152,21 @@
     <h2>Backtest (realistic — no lookahead, costs in)</h2>
     <div class="bt-controls">
       <label class="stat" for="btStrat">Strategy
-        <select id="btStrat" class="qty" style="width:130px">
+        <select id="btStrat" class="qty" style="width:150px">
           <option value="spike_fade">spike_fade</option>
           <option value="ema_momentum">ema_momentum</option>
           <option value="donchian">donchian</option>
+          <option value="rsi_reversion">rsi_reversion</option>
+          <option value="macd_cross">macd_cross</option>
+          <option value="vwap_reversion">vwap_reversion</option>
+          <option value="keltner_breakout">keltner_breakout</option>
+          <option value="atr_trend">atr_trend</option>
         </select>
       </label>
       <label class="stat" for="btTf">TF
-        <select id="btTf" class="qty" style="width:60px">
-          <option>5m</option><option>15m</option><option>1h</option>
+        <select id="btTf" class="qty" style="width:64px">
+          <option>1m</option><option>3m</option><option selected>5m</option>
+          <option>15m</option><option>30m</option><option>45m</option><option>1h</option>
         </select>
       </label>
       <span class="stat">TP%<input id="btTp" class="qty" type="number" value="2.0" step="0.1" title="take profit %"></span>
