@@ -45,6 +45,9 @@ spike_fade:
 regime:
   ema_period: 50
   slope_threshold: 0.0005   # |EMA slope per bar / price| below this => "range"
+  filter_enabled: true      # (A) only take regime-aligned signals: mean-reversion
+                            #   in range, momentum/breakout with the trend.
+                            #   Validated in walk-forward as an OOS improvement.
 
 # Bollinger multi-timeframe confirmation (see spec §4a)
 bollinger:

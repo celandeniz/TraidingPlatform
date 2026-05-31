@@ -27,6 +27,29 @@ ET = ZoneInfo("America/New_York")
 IST = ZoneInfo("Europe/Istanbul")
 MAX_WINDOW = 240  # bars kept in memory per symbol
 
+# Strategy -> regime alignment (the (A) improvement, validated in walk-forward).
+# Mean-reversion only in range; momentum/breakout only with the trend.
+_MEAN_REVERSION = {"spike_fade"}
+_TREND_FOLLOWING = {"ema_momentum", "donchian_breakout"}
+
+
+def regime_allows(strategy_name: str, side, regime: str) -> bool:
+    """True if this strategy's signal is aligned with the current regime.
+
+    spike_fade  -> only in 'range' (don't fade a trend).
+    ema/donchian-> only with the trend (long in up, short in down); not in range.
+    Unknown strategies are always allowed (no opinion).
+    """
+    if strategy_name in _MEAN_REVERSION:
+        return regime == "range"
+    if strategy_name in _TREND_FOLLOWING:
+        if regime == "up":
+            return side == "buy"
+        if regime == "down":
+            return side == "sell"
+        return False  # range: no trend to follow
+    return True
+
 
 class Engine:
     def __init__(self, config: dict, provider: AlpacaProvider, executor=None,
@@ -37,6 +60,9 @@ class Engine:
         self.confirmation_strategies = build_confirmation_strategies(config)
         self.windows: dict[str, pd.DataFrame] = {}
         self.regime_cfg = config.get("regime", {})
+        # (A) regime filter: align strategies with the regime. On by default
+        # (walk-forward showed it improves out-of-sample); toggle via config.
+        self.regime_filter = self.regime_cfg.get("filter_enabled", True)
         # Execution is opt-in: active only when risk.enabled AND a manager is given.
         # Default (Phase 1/2) = None => detect+log signals only, no orders.
         self.executor = executor
@@ -97,6 +123,9 @@ class Engine:
         for strat in self.signal_strategies:
             sig = strat.evaluate(ctx)
             if not sig.fired:
+                continue
+            # (A) regime filter: skip signals misaligned with the regime, when enabled.
+            if self.regime_filter and not regime_allows(strat.name, sig.side, regime):
                 continue
             confirmations = [c.confirm(sig.side, ctx) for c in self.confirmation_strategies]
             self._emit(symbol, bar, strat.name, sig, regime, confirmations)
