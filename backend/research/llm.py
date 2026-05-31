@@ -97,6 +97,8 @@ class ClaudeClient:
         cache_system: bool = True,
         clock=time.monotonic,
         use_case: str | None = None,  # accepted for provider parity; Claude uses `deep`
+        role: str | None = None,      # accepted for provider parity (Ollama role routing)
+        model: str | None = None,     # manual override: exact Claude model id
     ) -> dict:
         """Force Claude to emit one tool call matching tool_schema; return its input.
 
@@ -105,7 +107,8 @@ class ClaudeClient:
         selects model via `deep`); it is honored by the local Ollama client.
         """
         self._precheck(clock())
-        model = self.model_deep if deep else self.model
+        # Manual model override wins; else deep -> opus, else default.
+        model = model or (self.model_deep if deep else self.model)
         system_block = [{"type": "text", "text": system}]
         if cache_system:
             system_block[0]["cache_control"] = {"type": "ephemeral"}

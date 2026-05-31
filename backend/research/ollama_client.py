@@ -26,6 +26,18 @@ DEFAULT_USE_CASE_MODELS = {
     "lightweight": "gemma3:12b",   # lightweight
 }
 
+# Default role -> use-case map (business agents). Overridable via
+# config research.llm.ollama.roles. Each role resolves to a use-case, then to a
+# model — so changing the use-case model map updates every role that uses it.
+DEFAULT_ROLE_USE_CASES = {
+    "general_ai":      "general",     # Genel AI çalışanı  -> qwen3:14b
+    "d365_consultant": "general",     # D365 danışmanı     -> qwen3:14b
+    "azure_devops":    "coding",      # Azure DevOps Agent -> qwen2.5-coder:14b
+    "pmo":             "general",     # PMO Agent          -> qwen3:14b
+    "proposal":        "general",     # Proposal Agent     -> qwen3:14b
+    "analysis":        "reasoning",   # Analiz Agent       -> deepseek-r1:14b
+}
+
 
 class OllamaUnavailable(RuntimeError):
     pass
@@ -52,6 +64,7 @@ class OllamaClient:
         *,
         host: str = "http://localhost:11434",
         use_case_models: dict | None = None,
+        role_use_cases: dict | None = None,
         default_use_case: str = "general",
         deep_use_case: str = "reasoning",
         max_calls_per_min: int = 60,
@@ -59,6 +72,7 @@ class OllamaClient:
     ):
         self.host = host.rstrip("/")
         self.models = {**DEFAULT_USE_CASE_MODELS, **(use_case_models or {})}
+        self.roles = {**DEFAULT_ROLE_USE_CASES, **(role_use_cases or {})}
         self.default_use_case = default_use_case
         self.deep_use_case = deep_use_case
         self.max_calls_per_min = max_calls_per_min
@@ -70,10 +84,28 @@ class OllamaClient:
     def spent_usd(self) -> float:
         return 0.0  # local inference is free
 
-    def resolve_model(self, *, use_case: str | None, deep: bool) -> str:
-        """Pick a model: explicit use_case wins; else deep -> reasoning, else general."""
-        uc = use_case or (self.deep_use_case if deep else self.default_use_case)
+    def resolve_model(self, *, use_case: str | None = None, role: str | None = None,
+                      model: str | None = None, deep: bool = False) -> str:
+        """Resolve to a concrete model name. Precedence:
+          1. explicit model (manual override) — used verbatim
+          2. role -> use_case -> model
+          3. explicit use_case -> model
+          4. deep -> reasoning, else default use_case
+        """
+        if model:
+            return model
+        uc = None
+        if role:
+            uc = self.roles.get(role)
+        uc = uc or use_case or (self.deep_use_case if deep else self.default_use_case)
         return self.models.get(uc, self.models.get("general", "qwen3:14b"))
+
+    def model_for_role(self, role: str) -> str:
+        return self.resolve_model(role=role)
+
+    def available_roles(self) -> dict:
+        """role -> resolved model name, for UI/manual selection."""
+        return {r: self.model_for_role(r) for r in self.roles}
 
     def _precheck(self, now: float) -> None:
         with self._lock:
@@ -95,16 +127,19 @@ class OllamaClient:
         cache_system: bool = True,  # accepted for parity; Ollama caches its own KV
         clock=time.monotonic,
         use_case: str | None = None,
+        role: str | None = None,
+        model: str | None = None,  # manual override — exact model name wins
     ) -> dict:
         """Force a JSON object matching tool_schema; return it as a dict.
 
+        Model selection: explicit `model` (manual) > `role` > `use_case` > deep.
         Uses Ollama's structured-output `format` (JSON schema). Strips any
         <think>...</think> reasoning blocks (DeepSeek-R1) before parsing.
         """
         import requests
 
         self._precheck(clock())
-        model = self.resolve_model(use_case=use_case, deep=deep)
+        model = self.resolve_model(use_case=use_case, role=role, model=model, deep=deep)
         payload = {
             "model": model,
             "messages": [

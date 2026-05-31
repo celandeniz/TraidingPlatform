@@ -48,6 +48,7 @@ def _try_ollama(llm: dict):
     return OllamaClient(
         host=host,
         use_case_models=ocfg.get("models"),
+        role_use_cases=ocfg.get("roles"),
         default_use_case=ocfg.get("default_use_case", "general"),
         deep_use_case=ocfg.get("deep_use_case", "reasoning"),
         max_calls_per_min=llm.get("max_calls_per_min", 60),

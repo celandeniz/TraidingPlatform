@@ -36,6 +36,38 @@ def test_spent_usd_is_zero_local():
     assert _client().spent_usd == 0.0
 
 
+# ---- role-based selection -------------------------------------------------
+def test_role_resolves_to_model():
+    c = _client()
+    assert c.model_for_role("analysis") == "deepseek-r1:14b"      # reasoning
+    assert c.model_for_role("azure_devops") == "qwen2.5-coder:14b"  # coding
+    assert c.model_for_role("d365_consultant") == "qwen3:14b"     # general
+
+
+def test_manual_model_override_wins_over_role():
+    c = _client()
+    # explicit model beats role
+    assert c.resolve_model(role="analysis", model="gemma3:12b") == "gemma3:12b"
+
+
+def test_role_overrides_use_case():
+    c = _client()
+    # role present -> its use_case wins over a passed use_case
+    assert c.resolve_model(role="analysis", use_case="fast") == "deepseek-r1:14b"
+
+
+def test_available_roles_maps_all():
+    roles = _client().available_roles()
+    assert roles["analysis"] == "deepseek-r1:14b"
+    assert roles["azure_devops"] == "qwen2.5-coder:14b"
+    assert len(roles) == 6
+
+
+def test_custom_role_map_overrides():
+    c = _client(role_use_cases={"analysis": "lightweight"})
+    assert c.model_for_role("analysis") == "gemma3:12b"  # remapped to lightweight
+
+
 # ---- JSON parsing tolerance ----------------------------------------------
 def test_parse_plain_json():
     assert _parse_json_object('{"side": "long", "confidence": 0.7}', "vote")["side"] == "long"

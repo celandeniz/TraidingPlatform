@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
@@ -269,6 +270,49 @@ async def committee(symbol: str) -> dict:
     }
     await hub.broadcast(event)
     return event
+
+
+@app.get("/api/agent/roles")
+async def agent_roles() -> dict:
+    """List business-agent roles and the local model each auto-resolves to."""
+    if _llm is None or not hasattr(_llm, "available_roles"):
+        return {"available": False, "roles": {}}
+    return {"available": True, "roles": _llm.available_roles()}
+
+
+class AgentRunBody(BaseModel):
+    prompt: str
+    role: Optional[str] = None      # auto-select model by role
+    model: Optional[str] = None     # OR manual override (exact model name)
+    system: str = "You are a helpful assistant. Answer concisely."
+
+
+@app.post("/api/agent/run")
+async def agent_run(body: AgentRunBody) -> dict:
+    """Run a free-form agent request; model chosen by role (auto) or model (manual)."""
+    if _llm is None:
+        return {"available": False, "detail": "No LLM provider (start Ollama or set a key)."}
+    import asyncio as _a
+
+    schema = {"type": "object",
+              "properties": {"answer": {"type": "string"}},
+              "required": ["answer"]}
+
+    def _run():
+        return _llm.structured(
+            system=body.system, user=body.prompt, tool_name="answer",
+            tool_schema=schema, max_tokens=800, role=body.role, model=body.model,
+        )
+
+    resolved = None
+    if hasattr(_llm, "resolve_model"):
+        resolved = _llm.resolve_model(role=body.role, model=body.model)
+    try:
+        out = await _a.to_thread(_run)
+        return {"available": True, "model": resolved, "role": body.role,
+                "answer": out.get("answer", "")}
+    except Exception as exc:  # noqa: BLE001
+        return {"available": False, "model": resolved, "detail": str(exc)}
 
 
 @app.post("/api/kill_switch")

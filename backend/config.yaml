@@ -151,6 +151,16 @@ research:
       models:
         general: qwen3:14b             # best general
         fast: qwen3:8b                 # faster general
-        coding: qwen2.5-coder:14b      # coding
+        coding: qwen3:14b              # coding (qwen2.5-coder:14b not pulled — disk;
+                                       #   change back to qwen2.5-coder:14b once pulled)
         reasoning: deepseek-r1:14b     # reasoning
         lightweight: gemma3:12b        # lightweight
+      # Business-agent roles -> use-case (auto selection). Manual override is
+      # possible per call (role/model args) or via the /api/agent/run endpoint.
+      roles:
+        general_ai: general            # Genel AI çalışanı  -> qwen3:14b
+        d365_consultant: general       # D365 danışmanı     -> qwen3:14b
+        azure_devops: coding           # Azure DevOps Agent -> qwen2.5-coder:14b
+        pmo: general                   # PMO Agent          -> qwen3:14b
+        proposal: general              # Proposal Agent     -> qwen3:14b
+        analysis: reasoning            # Analiz Agent       -> deepseek-r1:14b
