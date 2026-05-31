@@ -151,8 +151,7 @@ research:
       models:
         general: qwen3:14b             # best general
         fast: qwen3:8b                 # faster general
-        coding: qwen3:14b              # coding (qwen2.5-coder:14b not pulled — disk;
-                                       #   change back to qwen2.5-coder:14b once pulled)
+        coding: qwen2.5-coder:14b      # coding
         reasoning: deepseek-r1:14b     # reasoning
         lightweight: gemma3:12b        # lightweight
       # Business-agent roles -> use-case (auto selection). Manual override is
