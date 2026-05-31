@@ -184,6 +184,21 @@
   </section>
 
   <section class="card full">
+    <h2>Walk-forward — out-of-sample validation (honest overfit test)</h2>
+    <div class="bt-controls">
+      <button type="button" class="primary" id="wfRun">Run walk-forward</button>
+      <label class="stat" for="wfFolds">Folds
+        <select id="wfFolds" class="qty" style="width:54px"><option>3</option><option selected>4</option><option>5</option></select>
+      </label>
+      <label class="stat" for="wfReg">
+        <input type="checkbox" id="wfReg" checked/> Regime filter (improved)
+      </label>
+      <span class="stat" id="wfState"></span>
+    </div>
+    <div id="wfResult"><div class="muted">Pick a symbol (click a watchlist row), then “Run walk-forward”. Optimizes in-sample, validates on unseen out-of-sample data.</div></div>
+  </section>
+
+  <section class="card full">
     <h2>Trade Tape</h2>
     <div id="tape"><div class="muted">Waiting for signals… hit “Replay recent bars”.</div></div>
   </section>
@@ -525,6 +540,54 @@ function runScenario(scenario){
   $("#btStrat").value=strat; $("#btTf").value=tf; $("#btTp").value=tp; $("#btSl").value=sl;
   $("#btchart").scrollIntoView({behavior:"smooth"});
   $("#btRun").click();
+}
+
+// ---- Walk-forward panel ----
+$("#wfRun").onclick=async()=>{
+  $("#wfState").textContent="optimizing IS, validating OOS…";
+  const body={symbol:_focused, timeframe:$("#btTf").value, folds:Number($("#wfFolds").value),
+    regime_filtered:$("#wfReg").checked};
+  try{
+    const r=await fetch("/api/walkforward",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(body)});
+    renderWF(await r.json());
+  }catch(err){ $("#wfResult").textContent="Walk-forward error: "+err; }
+  $("#wfState").textContent="";
+};
+function renderWF(w){
+  const c=$("#wfResult"); c.textContent="";
+  if(!w.ok){ c.appendChild(el("div",{cls:"muted",text:"Walk-forward failed: "+(w.detail||"?")})); return; }
+  // headline verdict
+  const ok = w.avg_oos_return>0;
+  c.appendChild(el("div",{cls:"bt-ai-k",text:w.symbol+" "+w.timeframe
+    +(w.regime_filtered?" · regime-filtered":" · baseline")+" · verdict:"}));
+  c.appendChild(el("div",{cls:"bt-ai "+(ok?"":""),color:ok?"var(--green)":"var(--red)",text:w.verdict}));
+  // metric tiles
+  const grid=el("div",{cls:"bt-metrics"});
+  const m=(k,v,good)=>{const d=el("div",{cls:"bt-m"});d.appendChild(el("div",{cls:"bt-k",text:k}));
+    d.appendChild(el("div",{cls:"bt-v "+(good===undefined?"":good?"pos":"neg"),text:v}));return d;};
+  grid.appendChild(m("Avg IS return", w.avg_is_return+"%", w.avg_is_return>0));
+  grid.appendChild(m("Avg OOS return", w.avg_oos_return+"%", w.avg_oos_return>0));
+  grid.appendChild(m("IS→OOS degradation", w.degradation_pct+"pp", w.degradation_pct<=0));
+  grid.appendChild(m("OOS beat B&H", w.oos_beat_bh_folds+"/"+w.n_folds, w.oos_beat_bh_folds*2>=w.n_folds));
+  c.appendChild(grid);
+  // per-fold table
+  const tbl=el("table",{cls:"bt-tt"});
+  tbl.appendChild(el("tr",{},["Fold","Chosen","IS ret%","OOS ret%","OOS B&H%","OOS excess%","Trades","OOS window"]
+    .map(h=>el("th",{text:h}))));
+  (w.folds||[]).forEach(f=>{
+    tbl.appendChild(el("tr",{},[
+      el("td",{text:String(f.fold)}),
+      el("td",{text:f.chosen}),
+      el("td",{cls:"pl "+(f.is_return_pct>=0?"pos":"neg"),text:f.is_return_pct+""}),
+      el("td",{cls:"pl "+(f.oos_return_pct>=0?"pos":"neg"),text:f.oos_return_pct+""}),
+      el("td",{text:f.oos_buy_hold_pct+""}),
+      el("td",{cls:"pl "+(f.oos_excess_pct>=0?"pos":"neg"),text:f.oos_excess_pct+""}),
+      el("td",{text:String(f.oos_trades)}),
+      el("td",{text:f.oos_start+"→"+f.oos_end}),
+    ]));
+  });
+  c.appendChild(tbl);
 }
 
 function connect(){

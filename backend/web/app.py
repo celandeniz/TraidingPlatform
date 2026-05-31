@@ -385,6 +385,77 @@ async def backtest_scenarios() -> dict:
     return {"ok": True, "count": len(rows), "rows": rows}
 
 
+class WalkForwardBody(BaseModel):
+    symbol: str = "MSFT"
+    timeframe: str = "5m"
+    folds: int = 4
+    regime_filtered: bool = True   # apply the (A) regime improvement
+    bars: int = 3000
+
+
+@app.post("/api/walkforward")
+async def walkforward_run(body: WalkForwardBody) -> dict:
+    """Walk-forward (out-of-sample) on one symbol; honest IS->OOS degradation."""
+    import asyncio as _a
+
+    from ..backtest.engine import ExitParams
+    from ..backtest.regime_filter import range_only, with_trend
+    from ..backtest.walkforward import Candidate, walk_forward
+    from ..strategy.donchian_breakout import generate as donch
+    from ..strategy.ema_momentum import generate as ema
+    from ..strategy.spike_fade import generate as spike
+
+    ex = ExitParams(2.0, 1.5, 0.8, 90, True)
+
+    def _cands():
+        out = []
+        if body.regime_filtered:
+            for ze in (1.5, 2.0):
+                for k in (2, 3):
+                    base = lambda d, ze=ze, k=k: spike(d, zscore_window=20, lookback_k=k, z_entry=ze)
+                    out.append(Candidate(f"sfR_z{ze}_k{k}", range_only(base), ex))
+            for f, s in [(8, 21), (12, 26), (9, 30)]:
+                base = lambda d, f=f, s=s: ema(d, fast=f, slow=s)
+                out.append(Candidate(f"emaT_{f}_{s}", with_trend(base), ex))
+            for ch in (10, 20, 30):
+                base = lambda d, ch=ch: donch(d, channel=ch)
+                out.append(Candidate(f"donT_{ch}", with_trend(base), ex))
+        else:
+            for ze in (1.5, 2.0):
+                for k in (2, 3):
+                    out.append(Candidate(f"sf_z{ze}_k{k}",
+                               lambda d, ze=ze, k=k: spike(d, zscore_window=20, lookback_k=k, z_entry=ze), ex))
+            for f, s in [(8, 21), (12, 26), (9, 30)]:
+                out.append(Candidate(f"ema_{f}_{s}", lambda d, f=f, s=s: ema(d, fast=f, slow=s), ex))
+            for ch in (10, 20, 30):
+                out.append(Candidate(f"don_{ch}", lambda d, ch=ch: donch(d, channel=ch), ex))
+        return out
+
+    def _run():
+        df = _provider.get_recent_bars(body.symbol.upper(), body.timeframe, body.bars)
+        return walk_forward(df, _cands(), n_folds=body.folds,
+                            symbol=body.symbol.upper(), timeframe=body.timeframe)
+
+    try:
+        wf = await _a.to_thread(_run)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "detail": str(exc)}
+    if wf.error:
+        return {"ok": False, "detail": wf.error}
+    return {
+        "ok": True, "symbol": wf.symbol, "timeframe": wf.timeframe,
+        "regime_filtered": body.regime_filtered, "n_folds": wf.n_folds,
+        "avg_is_return": wf.avg_is_return, "avg_oos_return": wf.avg_oos_return,
+        "avg_oos_excess": wf.avg_oos_excess, "degradation_pct": wf.degradation_pct,
+        "oos_positive_folds": wf.oos_positive_folds, "oos_beat_bh_folds": wf.oos_beat_bh_folds,
+        "verdict": wf.verdict,
+        "folds": [{"fold": f.fold, "chosen": f.chosen, "is_return_pct": f.is_return_pct,
+                   "oos_return_pct": f.oos_return_pct, "oos_buy_hold_pct": f.oos_buy_hold_pct,
+                   "oos_excess_pct": f.oos_excess_pct, "oos_trades": f.oos_trades,
+                   "oos_start": f.oos_start, "oos_end": f.oos_end} for f in wf.folds],
+    }
+
+
 @app.get("/api/agent/roles")
 async def agent_roles() -> dict:
     """List business-agent roles and the local model each auto-resolves to."""
