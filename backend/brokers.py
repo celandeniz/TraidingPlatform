@@ -44,7 +44,32 @@ def build_executor(asset_class: AssetClass, settings, cfg: dict) -> ExecutionAda
 
     Live adapters are built only in execution/live.py and only when LIVE_TRADING
     is set; the factory there always wraps them in a RiskManager.
+
+    Set ``brokers.executor: mock`` (or ``brokers.<asset_class>.executor: mock``)
+    in config.yaml to use the in-memory MockBroker — no network, deterministic
+    fills, useful for offline demos and CI.
     """
+    brokers = cfg.get("brokers", {})
+    # Per-asset-class executor override (default: alpaca paper for equity, ccxt for crypto).
+    executor = brokers.get(asset_class, {}).get("executor") or brokers.get("executor")
+    if executor == "mock":
+        from .execution.mock_adapter import MockExecutionAdapter
+
+        m = brokers.get("mock", {})
+        return MockExecutionAdapter(
+            starting_cash=float(m.get("starting_cash", 100_000)),
+            asset_class=asset_class,
+        )
+    if executor == "ib":
+        from .execution.ib_adapter import IBExecutionAdapter
+
+        ib = brokers.get("ib", {})
+        return IBExecutionAdapter(
+            host=ib.get("host", "127.0.0.1"),
+            port=int(ib.get("port", 7497)),
+            client_id=int(ib.get("client_id", 1)),
+            account=ib.get("account", ""),
+        )
     if asset_class == "crypto":
         from .execution.ccxt_adapter import CcxtExecutionAdapter
 

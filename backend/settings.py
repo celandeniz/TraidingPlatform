@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     ccxt_api_key: str = ""
     ccxt_api_secret: str = ""
     ccxt_exchange: str = "binance"
+    # Optional OpenBB market-data provider keys (only used when marketdata.enabled).
+    fmp_api_key: str = ""
+    polygon_api_key: str = ""
+    intrinio_api_key: str = ""
+    tiingo_token: str = ""
+    alpha_vantage_api_key: str = ""
 
     model_config = SettingsConfigDict(
         env_file=(REPO_DIR / ".env", BACKEND_DIR / ".env"),

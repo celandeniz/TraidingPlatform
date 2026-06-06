@@ -116,10 +116,29 @@ exits:
 brokers:
   default_asset_class: equity
   symbol_overrides: {}            # e.g. {BTC/USDT: crypto, ETH/USDT: crypto}
+  # executor override per asset class: omit/"" => default (alpaca paper / ccxt),
+  # "mock" => in-memory MockBroker (no network), "ib" => Interactive Brokers.
+  # equity: { executor: mock }
   crypto:
     exchange: binance
     sandbox: true                 # Binance testnet = crypto "paper"
     leverage: 1
+  mock:
+    starting_cash: 100000         # MockBroker opening cash (offline demos / CI)
+  ib:                             # Interactive Brokers (TWS/Gateway must be running)
+    host: 127.0.0.1
+    port: 7497                    # 7497 TWS paper, 7496 TWS live, 4002/4001 Gateway
+    client_id: 1
+    account: ""                   # blank = default account
+
+# Cross-asset market data (OpenBB) — fundamentals, estimates, earnings, insider,
+# movers, symbol search across equities/crypto/fx/commodities/macro.
+# OFF by default: enable deliberately (adds the openbb dependency + provider keys).
+marketdata:
+  enabled: false
+  backend: openbb
+  providers: {}                   # per-asset default, e.g. {equity: fmp, crypto: fmp}
+  api_keys: {}                    # inline keys; or set *_api_key in .env
 
 # AI decision & research layer (Phase 2). See spec phase2-ai-decision.
 research:

@@ -55,3 +55,23 @@ def test_routing_unknown_asset_class_rejects():
     router = RoutingExecutionAdapter({"equity": _Fake("eq")})
     r = router.submit(OrderRequest("BTC/USDT", "buy", 1, asset_class="crypto"))
     assert not r.ok and "no executor" in r.detail
+
+
+def test_build_executor_mock_is_networkfree():
+    from backend.brokers import build_executor
+    from backend.execution.mock_adapter import MockExecutionAdapter
+
+    cfg = {"brokers": {"executor": "mock", "mock": {"starting_cash": 5000}}}
+    ex = build_executor("equity", settings=None, cfg=cfg)
+    assert isinstance(ex, MockExecutionAdapter)
+    assert ex.account_summary()["cash"] == 5000
+
+
+def test_build_executor_per_asset_class_override():
+    from backend.brokers import build_executor
+    from backend.execution.mock_adapter import MockExecutionAdapter
+
+    # crypto overridden to mock; equity would still build the default (not exercised here)
+    cfg = {"brokers": {"crypto": {"executor": "mock"}}}
+    ex = build_executor("crypto", settings=None, cfg=cfg)
+    assert isinstance(ex, MockExecutionAdapter)
