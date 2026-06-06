@@ -663,5 +663,105 @@ connect();
 loadPositions();
 focusSymbol("MSFT");  // initial chart
 </script>
+
+<!-- ============ Extras panel: features added on top of the base dashboard ========= -->
+<style>
+  #extras{padding:14px 18px;border-top:1px solid var(--line);background:var(--panel2)}
+  #extras h2{font-size:13px;margin:0 0 10px;color:var(--dim);letter-spacing:.4px;text-transform:uppercase}
+  #extras .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+  #extras .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  #extras .card h3{margin:0 0 8px;font-size:13px;font-weight:650}
+  #extras input{background:var(--chip);border:1px solid var(--line);color:var(--text);
+    border-radius:6px;padding:5px 7px;font:inherit;width:64px}
+  #extras input.wide{width:140px}
+  #extras .out{margin-top:8px;font-size:12px;color:var(--dim);max-height:170px;overflow:auto}
+  #extras .out a{color:var(--blue);text-decoration:none}
+  #extras .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  #extras .k{color:var(--text);font-weight:650}
+  #extras a.link{color:var(--blue);text-decoration:none;font-size:12px}
+</style>
+<section id="extras">
+  <h2>Eklenen Araçlar · Added Tools</h2>
+  <div class="cards">
+    <div class="card"><h3>📰 Haberler (tüm kaynaklar)</h3>
+      <div class="row">
+        <input id="nwsQ" class="wide" placeholder="kelime"/>
+        <input id="nwsSym" placeholder="sembol"/>
+        <button type="button" onclick="exNewsSearch()">Ara</button>
+        <button type="button" onclick="exNewsLatest()">En son</button>
+      </div>
+      <div class="out" id="nwsOut">Alpaca + RSS + Yahoo birleşik.</div>
+    </div>
+
+    <div class="card"><h3>🧾 Emir Defteri (Trading-as-Git)</h3>
+      <div class="row"><button type="button" onclick="exOrders()">Yenile</button></div>
+      <div class="out" id="ordOut">stage → commit → push geçmişi.</div>
+    </div>
+
+    <div class="card"><h3>📊 İşlem Kalitesi (TCA)</h3>
+      <div class="row"><button type="button" onclick="exTca()">Yenile</button></div>
+      <div class="out" id="tcaOut">Gerçekleşen kayma (slippage) özeti.</div>
+    </div>
+
+    <div class="card"><h3>📈 Equity Curve</h3>
+      <div class="row"><button type="button" onclick="exEquity()">Yükle</button></div>
+      <div class="out" id="eqOut">snapshots.enabled gerektirir.</div>
+    </div>
+
+    <div class="card"><h3>🧮 Opsiyon Greekleri</h3>
+      <div class="row">
+        S<input id="gS" value="100" title="spot" aria-label="spot"/>K<input id="gK" value="100" title="strike" aria-label="strike"/>
+        gün<input id="gD" value="30" title="gün" aria-label="days"/>vol<input id="gV" value="0.25" title="vol" aria-label="vol"/>
+        <button type="button" onclick="exGreeks()">Hesapla</button>
+      </div>
+      <div class="out" id="grOut">Black-Scholes (yerel).</div>
+    </div>
+
+    <div class="card"><h3>🤖 Otonom Aksiyon</h3>
+      <div class="row"><button type="button" onclick="exAuto()">Bir döngü çalıştır</button></div>
+      <div class="out" id="autoOut">auto_trader.enabled gerektirir · varsayılan dry-run.</div>
+    </div>
+
+    <div class="card"><h3>🔗 Bağlantılar</h3>
+      <div class="row">
+        <a class="link" href="/static/perspective.html" target="_blank" rel="noopener">Perspective canlı tablolar →</a>
+      </div>
+      <div class="row"><button type="button" onclick="exConfig()">Aktif config'i göster</button></div>
+      <div class="out" id="cfgOut"></div>
+    </div>
+  </div>
+</section>
+<script>
+// Self-contained: own helpers, vanilla fetch — does not touch the base dashboard JS.
+const exG=id=>document.getElementById(id);
+async function exJSON(url,opts){try{const r=await fetch(url,opts);return await r.json();}
+  catch(e){return{error:String(e)};}}
+function exNews(d,el){if(d.error)return el.innerHTML="hata: "+d.error;
+  const rows=(d.results||[]).slice(0,12).map(h=>`<div>• <a href="${h.url||'#'}" target="_blank" rel="noopener">${h.headline}</a></div>`).join("");
+  el.innerHTML=`<div>kaynaklar: ${(d.sources||[]).join(", ")||"—"}</div>${rows||"sonuç yok"}`;}
+async function exNewsSearch(){const q=exG("nwsQ").value,s=exG("nwsSym").value;
+  exNews(await exJSON(`/api/news/search?q=${encodeURIComponent(q)}${s?`&symbol=${encodeURIComponent(s)}`:""}`),exG("nwsOut"));}
+async function exNewsLatest(){const s=exG("nwsSym").value;
+  exNews(await exJSON(`/api/news/latest${s?`?symbol=${encodeURIComponent(s)}`:""}`),exG("nwsOut"));}
+async function exOrders(){const d=await exJSON("/api/orders");
+  const rows=(d.orders||[]).slice(-15).reverse().map(o=>`<div>${(o.state||"").padEnd(9)} · ${o.request.symbol||""} ${o.request.side||""} ${o.request.qty||""} <span class="k">${o.message||""}</span></div>`).join("");
+  exG("ordOut").innerHTML=rows||"emir yok";}
+async function exTca(){const d=await exJSON("/api/exec/analytics");const s=d.summary||{};
+  exG("tcaOut").innerHTML=`n=<span class="k">${s.n||0}</span> · ort. kayma <span class="k">${s.avg_slippage_bps??"—"} bps</span> · fill <span class="k">${s.avg_fill_ratio??"—"}</span>`;}
+async function exEquity(){const d=await exJSON("/api/equity_curve");
+  if(!d.available)return exG("eqOut").textContent=d.detail||"kapalı";
+  const p=d.points||[];const last=p[p.length-1];
+  exG("eqOut").innerHTML=`${p.length} nokta · son equity <span class="k">${last?Math.round(last.equity):"—"}</span>`;}
+async function exGreeks(){const q=`spot=${exG("gS").value}&strike=${exG("gK").value}&days=${exG("gD").value}&vol=${exG("gV").value}`;
+  const d=await exJSON(`/api/options/greeks?${q}`);
+  exG("grOut").innerHTML=d.ok?`fiyat <span class="k">${d.price}</span> · Δ ${d.delta} · Γ ${d.gamma} · vega ${d.vega} · θ ${d.theta} <span style="color:var(--dim)">(${d.source})</span>`:"hata";}
+async function exAuto(){exG("autoOut").textContent="çalışıyor…";
+  const d=await exJSON("/api/agent/auto/cycle",{method:"POST"});
+  if(!d.ran)return exG("autoOut").textContent=d.detail||"çalışmadı";
+  const rows=(d.actions||[]).map(a=>`<div>${a.status} · ${a.symbol} ${a.action} ${a.qty} <span style="color:var(--dim)">${a.detail||a.reason||""}</span></div>`).join("");
+  exG("autoOut").innerHTML=`${d.dry_run?"DRY-RUN":"CANLI"} · ${d.n_proposed} öneri${rows}`;}
+async function exConfig(){const d=await exJSON("/api/config");
+  exG("cfgOut").innerHTML=`<pre style="white-space:pre-wrap;color:var(--dim)">${JSON.stringify(d.config,null,1).slice(0,600)}…</pre>`;}
+</script>
 </body>
 </html>
