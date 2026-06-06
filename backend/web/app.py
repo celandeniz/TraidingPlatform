@@ -763,6 +763,28 @@ async def inbox_push(body: InboxBody) -> dict:
     return {"ok": True, "message": msg}
 
 
+@app.post("/api/agent/auto/cycle")
+async def auto_trader_cycle() -> dict:
+    """Run ONE autonomous decision cycle. Gated by auto_trader.enabled; dry-run by
+    default (proposes only). Any execution routes through the OMS + guards + risk."""
+    acfg = _config.get("auto_trader", {})
+    if not acfg.get("enabled", False):
+        return {"ran": False, "detail": "auto_trader disabled (auto_trader.enabled=false)"}
+    if _llm is None:
+        return {"ran": False, "detail": "no LLM provider (start Ollama or set a key)"}
+    import asyncio as _a
+
+    from ..agent.auto_trader import AutoTrader
+    from ..mcp.tools import Toolset
+
+    toolset = Toolset(_executor, oms=_oms, market_data=None, config=_config)
+    trader = AutoTrader(toolset, _llm, acfg, news=_news_unified)
+    out = await _a.to_thread(trader.run_cycle)
+    await hub.broadcast({"type": "auto_cycle", "dry_run": out.get("dry_run", True),
+                         "n": out.get("n_proposed", 0)})
+    return out
+
+
 @app.get("/api/exec/analytics")
 async def exec_analytics() -> dict:
     """Transaction-cost analysis: per-order slippage vs arrival + aggregate summary."""

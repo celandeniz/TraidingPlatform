@@ -115,6 +115,18 @@ execution:
     max_participation: 1.0        # cap fill at this fraction of bar volume (1 = no cap)
     commission_bps: 1.0           # per side
 
+# Autonomous LLM action loop (Gemini/Claude/Ollama drives the MCP toolset).
+# OFF + dry_run by default. Even when live, every action passes guards + risk +
+# kill-switch downstream. Trigger one cycle via POST /api/agent/auto/cycle.
+auto_trader:
+  enabled: false
+  dry_run: true                   # propose only; set false to actually submit
+  symbol_whitelist: []            # empty => any (still guard/risk gated)
+  min_confidence: 0.6
+  max_actions_per_cycle: 3
+  max_qty: 10
+  include_news: false             # add per-symbol headlines to the LLM context
+
 # Composable pre-trade guard pipeline (stacks in front of the broker, like risk).
 # OFF by default. Net-new vs. risk: per-account symbol whitelist + per-symbol
 # cooldown. Closing (reduce_only) orders always bypass guards.
