@@ -139,6 +139,28 @@ brokers:
     client_id: 1
     account: ""                   # blank = default account
 
+# Automation: cron/interval/one-shot schedules + heartbeat + inbound webhooks.
+# OFF by default. Schedules drive periodic snapshots / news fetches when on.
+scheduler:
+  enabled: false
+  heartbeat:
+    interval_seconds: 300         # tick every 5 min
+    active_start_utc: "13:30"     # ~US market open (UTC); null => always active
+    active_end_utc: "20:00"       # ~US market close (UTC)
+    dedup_seconds: 60
+  webhooks_enabled: false         # expose POST /api/hooks/{name} when true
+
+# Account snapshots -> equity curve (logs/snapshots_*.jsonl).
+snapshots:
+  enabled: false
+  interval_seconds: 300
+
+# RSS news aggregation (feedparser) with a searchable archive. OFF by default.
+news_rss:
+  enabled: false
+  retention_days: 14
+  feeds: []                       # e.g. [https://feeds.a.dj.com/rss/RSSMarketsMain.xml]
+
 # Cross-asset market data (OpenBB) — fundamentals, estimates, earnings, insider,
 # movers, symbol search across equities/crypto/fx/commodities/macro.
 # OFF by default: enable deliberately (adds the openbb dependency + provider keys).

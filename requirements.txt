@@ -14,3 +14,5 @@ requests>=2.31
 # --- core runner/backtest/tests do not import these unless the flag is on.     ---
 # openbb>=4.3          # marketdata.enabled: cross-asset data + fundamentals
 # ib_async>=1.0        # brokers.*.executor: ib  (Interactive Brokers)
+# croniter>=2.0        # scheduler: cron-expression schedules
+# feedparser>=6.0      # news_rss.enabled: RSS news aggregation

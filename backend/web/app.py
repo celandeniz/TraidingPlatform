@@ -77,6 +77,29 @@ if _rcfg.get("enabled", True):
             )
 
 
+# Phase C automation surfaces (OpenAlice merge). All opt-in via config; the
+# objects are built only when their flag is on so the default app is unchanged.
+_snapshots = None  # SnapshotStore | None
+if _config.get("snapshots", {}).get("enabled", False):
+    from ..portfolio.snapshots import SnapshotStore
+
+    _snapshots = SnapshotStore()
+
+_event_log = None  # EventLog | None
+if _config.get("scheduler", {}).get("enabled", False):
+    from ..scheduler.core import EventLog
+
+    _event_log = EventLog()
+
+_rss = None  # RssNewsAggregator | None
+_rss_cfg = _config.get("news_rss", {})
+if _rss_cfg.get("enabled", False) and _rss_cfg.get("feeds"):
+    from ..research.news_rss import RssNewsAggregator
+
+    _rss = RssNewsAggregator(_rss_cfg["feeds"],
+                             retention_days=_rss_cfg.get("retention_days", 14))
+
+
 class Hub:
     """Tracks connected browsers and broadcasts JSON events to all of them."""
 
@@ -546,6 +569,47 @@ async def kill_switch() -> dict:
         await hub.broadcast({"type": "kill", "engaged": True, "reason": "manual"})
         return {"engaged": True}
     return {"engaged": False, "detail": "risk manager not active (risk.enabled=false)"}
+
+
+@app.get("/api/equity_curve")
+async def equity_curve(days: int = 7) -> dict:
+    """Account equity over time from periodic snapshots (snapshots.enabled)."""
+    if _snapshots is None:
+        return {"available": False, "detail": "snapshots disabled (snapshots.enabled=false)",
+                "points": []}
+    # capture one fresh point so the curve is never empty when first viewed
+    try:
+        _snapshots.capture(_executor, reason="dashboard")
+    except Exception:  # noqa: BLE001
+        pass
+    return {"available": True, "points": _snapshots.equity_curve(days=days)}
+
+
+@app.post("/api/hooks/{name}")
+async def inbound_webhook(name: str, payload: Optional[dict] = None) -> dict:
+    """Inbound webhook -> append to the scheduler event log + broadcast.
+
+    Enabled by scheduler.enabled + scheduler.webhooks_enabled. External systems
+    (TradingView alerts, etc.) can POST here to drive the platform.
+    """
+    if _event_log is None or not _config.get("scheduler", {}).get("webhooks_enabled", False):
+        return {"ok": False, "detail": "webhooks disabled "
+                "(scheduler.enabled + scheduler.webhooks_enabled)"}
+    event = _event_log.emit(f"webhook:{name}", payload or {}, source="webhook")
+    await hub.broadcast({"type": "webhook", "name": name, "payload": payload or {}})
+    return {"ok": True, "event": event}
+
+
+@app.get("/api/news/search")
+async def news_search(q: str, limit: int = 25) -> dict:
+    """Keyword search over the RSS news archive (news_rss.enabled)."""
+    if _rss is None:
+        return {"available": False, "detail": "RSS news disabled (news_rss.enabled=false)",
+                "results": []}
+    hits = _rss.search(q, limit=limit)
+    return {"available": True, "query": q,
+            "results": [{"headline": h.headline, "summary": h.summary,
+                         "url": h.url, "created_at": h.created_at.isoformat()} for h in hits]}
 
 
 @app.websocket("/ws")
