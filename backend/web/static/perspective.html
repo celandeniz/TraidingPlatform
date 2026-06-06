@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TraidingPlatform — Perspective</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Perspective WASM client + viewer (FINOS / JPMorgan), loaded from CDN.
+       NOTE: for production, pin exact versions and add Subresource Integrity
+       (integrity="sha384-..."), or vendor these assets locally and serve them
+       from /static. This dashboard binds to localhost by default. -->
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer/dist/cdn/perspective-viewer.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer-datagrid/dist/cdn/perspective-viewer-datagrid.js"></script>
+  <script type="module"
+    src="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer-d3fc/dist/cdn/perspective-viewer-d3fc.js"></script>
+  <link rel="stylesheet" crossorigin="anonymous"
+    href="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer/dist/css/themes.css" />
+  <style>
+    html, body { margin: 0; height: 100%; background: #1c1f26; color: #ddd;
+                 font-family: system-ui, sans-serif; }
+    header { padding: 8px 14px; font-size: 14px; border-bottom: 1px solid #333; }
+    header a { color: #6cf; }
+    #grid { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 46vh; gap: 6px;
+            padding: 6px; box-sizing: border-box; }
+    perspective-viewer { background: #20242c; border: 1px solid #333; border-radius: 6px; }
+    #err { padding: 14px; color: #f88; display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    Perspective live tables — signals · orders · positions · execution quality · equity.
+    <a href="/">← back to dashboard</a>
+  </header>
+  <div id="err"></div>
+  <div id="grid">
+    <perspective-viewer id="signals"></perspective-viewer>
+    <perspective-viewer id="orders"></perspective-viewer>
+    <perspective-viewer id="positions"></perspective-viewer>
+    <perspective-viewer id="exec_quality"></perspective-viewer>
+    <perspective-viewer id="equity_curve" style="grid-column: span 2;"></perspective-viewer>
+  </div>
+
+  <script type="module">
+    import perspective from "https://cdn.jsdelivr.net/npm/@perspective-dev/client/dist/cdn/perspective.js";
+
+    const TABLES = ["signals", "orders", "positions", "exec_quality", "equity_curve"];
+
+    async function main() {
+      const status = await (await fetch("/api/perspective/status")).json();
+      if (!status.available) {
+        const e = document.getElementById("err");
+        e.style.display = "block";
+        e.textContent = "Perspective feed unavailable: " + (status.detail || "disabled");
+        return;
+      }
+      const proto = location.protocol === "https:" ? "wss" : "ws";
+      const ws = await perspective.websocket(`${proto}://${location.host}/ws/perspective`);
+      for (const name of TABLES) {
+        try {
+          const table = await ws.open_table(name);
+          await document.getElementById(name).load(table);
+        } catch (err) {
+          console.warn("table", name, err);
+        }
+      }
+    }
+    main();
+  </script>
+</body>
+</html>

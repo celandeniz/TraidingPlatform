@@ -106,12 +106,22 @@ from ..oms.ledger import OrderManager  # noqa: E402
 _oms = OrderManager(_executor)
 _inbox: list[dict] = []
 
+# Perspective (FINOS) streaming tables — built only when enabled and the optional
+# perspective package is installed; otherwise the feed is disabled and skipped.
+_perspective = None
+if _config.get("perspective", {}).get("enabled", False):
+    from .perspective_server import PerspectiveFeed
+
+    _pf = PerspectiveFeed()
+    _perspective = _pf if _pf.available else None
+
 
 class Hub:
     """Tracks connected browsers and broadcasts JSON events to all of them."""
 
     def __init__(self) -> None:
         self.clients: set[WebSocket] = set()
+        self.sinks: list = []  # extra consumers (e.g. Perspective) fed every event
 
     async def connect(self, ws: WebSocket) -> None:
         await ws.accept()
@@ -121,6 +131,11 @@ class Hub:
         self.clients.discard(ws)
 
     async def broadcast(self, event: dict) -> None:
+        for sink in self.sinks:
+            try:
+                sink(event)
+            except Exception:  # noqa: BLE001 - a sink must never break the broadcast
+                pass
         dead = []
         for ws in list(self.clients):
             try:
@@ -132,6 +147,8 @@ class Hub:
 
 
 hub = Hub()
+if _perspective is not None:
+    hub.sinks.append(_perspective.feed)  # forward every broadcast into Perspective
 
 
 class DashboardEngine(Engine):
@@ -697,6 +714,32 @@ async def inbox_push(body: InboxBody) -> dict:
     _inbox.append(msg)
     await hub.broadcast({"type": "inbox", **msg})
     return {"ok": True, "message": msg}
+
+
+@app.get("/api/perspective/status")
+async def perspective_status() -> dict:
+    """Whether the Perspective streaming feed is live (enabled + package present)."""
+    if _perspective is None:
+        return {"available": False,
+                "detail": "disabled (perspective.enabled=false or perspective not installed)"}
+    # refresh snapshot-style tables on demand so a freshly opened viewer isn't empty
+    try:
+        _perspective.replace("positions", _executor.list_positions())
+        if _snapshots is not None:
+            _perspective.replace("equity_curve", _snapshots.equity_curve())
+    except Exception:  # noqa: BLE001
+        pass
+    return {"available": True, "tables": list(_perspective._tables.keys()),
+            "websocket": "/ws/perspective"}
+
+
+@app.websocket("/ws/perspective")
+async def perspective_ws(ws: WebSocket) -> None:
+    """Perspective protocol socket — perspective-viewer clients connect here."""
+    if _perspective is None:
+        await ws.close(code=1011)
+        return
+    await _perspective.handler(ws).run()
 
 
 @app.websocket("/ws")
