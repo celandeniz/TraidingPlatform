@@ -102,6 +102,19 @@ risk:
   max_position_pct: 20            # cap single-position notional as % of equity
   max_daily_loss_pct: 3.0         # kill-switch trips here
 
+# Realistic execution / fill model (order types, spread, slippage, partial fills,
+# TCA). OFF by default => MockBroker keeps full-fill-at-one-price; live adapters
+# unchanged. Turn on to model fills the way a real desk experiences them.
+execution:
+  realistic_fills: false          # route MockBroker fills through the FillModel
+  record_tca: false               # log per-order slippage to logs/exec_analytics.jsonl
+  fill_model:
+    spread_bps: 2.0               # full bid/ask spread; half charged per fill
+    base_slippage_bps: 1.0        # fixed adverse slippage per fill
+    impact_coef_bps: 50.0         # bps of slippage at 100% of bar volume
+    max_participation: 1.0        # cap fill at this fraction of bar volume (1 = no cap)
+    commission_bps: 1.0           # per side
+
 # Composable pre-trade guard pipeline (stacks in front of the broker, like risk).
 # OFF by default. Net-new vs. risk: per-account symbol whitelist + per-symbol
 # cooldown. Closing (reduce_only) orders always bypass guards.

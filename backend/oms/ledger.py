@@ -44,10 +44,11 @@ class OrderRecord:
 
 class OrderManager:
     def __init__(self, adapter: ExecutionAdapter, *, ledger_path: Optional[Path] = None,
-                 clock=None):
+                 clock=None, analytics=None):
         self._adapter = adapter
         self._path = ledger_path or LEDGER_PATH
         self._clock = clock or (lambda: datetime.now(timezone.utc))
+        self._analytics = analytics  # ExecutionAnalytics | None — records TCA per push
         self._orders: dict[str, OrderRecord] = {}
         self._replay()
 
@@ -112,6 +113,13 @@ class OrderManager:
         result = self._adapter.submit(req)
         final = "filled" if result.ok else "rejected"
         self._emit(order_id, final, detail=result.detail, result=asdict(result))
+        # Transaction-cost analysis: record realized slippage vs the arrival price
+        # (decision price). Best-available arrival: explicit meta, limit, else fill.
+        if self._analytics is not None and result.ok:
+            arrival = (req.meta.get("arrival") or req.meta.get("price")
+                       or req.limit_price or result.fill_price or 0.0)
+            if arrival:
+                self._analytics.record(result, float(arrival))
         return result
 
     def discard(self, order_id: str, reason: str = "") -> None:

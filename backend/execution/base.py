@@ -13,6 +13,7 @@ from typing import Literal, Optional, Protocol, TypedDict
 Side = Literal["buy", "sell"]
 PositionSide = Literal["long", "short"]
 AssetClass = Literal["equity", "crypto"]
+OrderType = Literal["market", "limit", "stop", "stop_limit"]
 
 
 @dataclass
@@ -26,6 +27,10 @@ class OrderRequest:
     asset_class: AssetClass = "equity"
     client_order_id: Optional[str] = None  # idempotency / reconciliation
     time_in_force: str = "day"  # "day" for equity, "gtc" for crypto
+    # --- order type (default market keeps every existing call site working) ---
+    order_type: OrderType = "market"
+    limit_price: Optional[float] = None  # required for limit / stop_limit
+    stop_price: Optional[float] = None   # trigger for stop / stop_limit
     meta: dict = field(default_factory=dict)  # leverage, decision id, tags
 
 
@@ -38,6 +43,9 @@ class OrderResult:
     qty: float
     status: str
     detail: str = ""
+    # --- realistic-fill fields (None when a broker doesn't report them) ---
+    filled_qty: Optional[float] = None   # may be < qty on a partial fill
+    fill_price: Optional[float] = None   # average fill price actually realized
 
 
 class PositionView(TypedDict):

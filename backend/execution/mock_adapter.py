@@ -28,13 +28,24 @@ class MockExecutionAdapter:
     fills use the position's average entry as a last resort so tests stay total.
     """
 
-    def __init__(self, starting_cash: float = 100_000.0, asset_class: str = "equity"):
+    def __init__(self, starting_cash: float = 100_000.0, asset_class: str = "equity",
+                 *, realistic: bool = False, fill_config=None):
         self._cash = float(starting_cash)
         self._asset_class = asset_class
         self._positions: dict[str, _Pos] = {}
         self._marks: dict[str, float] = {}
         self._orders: list[OrderResult] = []
         self._seq = 0
+        # When realistic=True, fills route through the FillModel (order types,
+        # spread/slippage, partial fills). Default off keeps the deterministic
+        # full-fill-at-one-price behavior the existing tests rely on.
+        self._realistic = realistic
+        if realistic:
+            from .fills import FillModelConfig
+
+            self._fill_cfg = fill_config or FillModelConfig()
+        else:
+            self._fill_cfg = None
 
     # --- test/demo helpers -------------------------------------------------
     def mark(self, symbol: str, price: float) -> None:
@@ -51,11 +62,24 @@ class MockExecutionAdapter:
 
     # --- ExecutionAdapter Protocol ----------------------------------------
     def submit(self, req: OrderRequest) -> OrderResult:
-        price = self._fill_price(req)
-        if price <= 0:
+        ref = self._fill_price(req)
+        if ref <= 0:
             return self._reject(req, "no price available for mock fill")
 
-        signed = req.qty if req.side == "buy" else -req.qty
+        # Decide fill qty + price: realistic (FillModel) or legacy (full @ ref).
+        if self._realistic:
+            from .fills import Quote, simulate_fill
+
+            quote = Quote(ref_price=ref, volume=req.meta.get("volume"))
+            fr = simulate_fill(req, quote, self._fill_cfg)
+            if not fr.filled:
+                return self._reject(req, f"{req.order_type} not filled: {fr.reason}")
+            fill_qty, fill_px = fr.filled_qty, fr.fill_price
+            status = "partial" if fr.reason == "partial" else "filled"
+        else:
+            fill_qty, fill_px, status = req.qty, ref, "filled"
+
+        signed = fill_qty if req.side == "buy" else -fill_qty
         pos = self._positions.get(req.symbol)
         cur_qty = pos.qty if pos else 0.0
 
@@ -65,32 +89,34 @@ class MockExecutionAdapter:
                 return self._reject(req, "reduce_only order would not reduce position")
             # clamp so we never cross zero into a new opposite position
             signed = max(-abs(cur_qty), min(abs(cur_qty), signed))
+            fill_qty = abs(signed)
 
         new_qty = cur_qty + signed
-        # realized cash flow: buying costs cash, selling returns cash (qty * price)
-        self._cash -= signed * price
+        # realized cash flow: buying costs cash, selling returns cash (qty * fill price)
+        self._cash -= signed * fill_px
 
         if abs(new_qty) < 1e-12:
             self._positions.pop(req.symbol, None)
         elif pos is None or (cur_qty == 0):
-            self._positions[req.symbol] = _Pos(new_qty, price)
+            self._positions[req.symbol] = _Pos(new_qty, fill_px)
         elif (cur_qty > 0) == (new_qty > 0) and abs(new_qty) > abs(cur_qty):
             # adding to the same side -> weighted-average entry
-            total = pos.avg_entry * abs(cur_qty) + price * abs(signed)
+            total = pos.avg_entry * abs(cur_qty) + fill_px * abs(signed)
             pos.avg_entry = total / abs(new_qty)
             pos.qty = new_qty
         else:
             # reducing, or flipping side -> entry resets to fill on a flip
             pos.qty = new_qty
             if (cur_qty > 0) != (new_qty > 0):
-                pos.avg_entry = price
+                pos.avg_entry = fill_px
 
-        self._marks[req.symbol] = price
+        self._marks[req.symbol] = ref
         self._seq += 1
         res = OrderResult(
             ok=True, order_id=f"mock-{self._seq}", symbol=req.symbol,
-            side=req.side, qty=req.qty, status="filled",
-            detail=f"filled @ {price}",
+            side=req.side, qty=req.qty, status=status,
+            detail=f"{status} {fill_qty} @ {round(fill_px, 6)}",
+            filled_qty=fill_qty, fill_price=fill_px,
         )
         self._orders.append(res)
         return res

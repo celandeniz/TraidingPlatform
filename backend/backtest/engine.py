@@ -32,6 +32,17 @@ class CostModel:
     commission_bps: float = 1.0   # per side, basis points of notional
     slippage_bps: float = 2.0     # adverse, per fill
 
+    @classmethod
+    def from_fill_config(cls, cfg) -> "CostModel":
+        """Build a CostModel from a FillModelConfig so the backtest charges the
+        SAME per-fill cost the live/mock FillModel does (half-spread + base
+        slippage as the 'slippage' term, commission as commission). Lets one set
+        of assumptions drive both backtest and execution. Order-book impact /
+        partial fills don't map onto the single-position fraction backtest, so
+        they're intentionally excluded here."""
+        return cls(commission_bps=cfg.commission_bps,
+                   slippage_bps=cfg.spread_bps / 2.0 + cfg.base_slippage_bps)
+
 
 @dataclass
 class ExitParams:

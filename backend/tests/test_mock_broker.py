@@ -74,3 +74,40 @@ def test_no_price_rejects():
     b = MockExecutionAdapter()
     r = b.submit(OrderRequest("X", "buy", 1))  # no mark, no meta price
     assert not r.ok and "no price" in r.detail
+
+
+# --- realistic mode (FillModel) ---------------------------------------------
+
+def test_realistic_market_fill_includes_slippage_and_reports_fill():
+    b = MockExecutionAdapter(realistic=True)
+    b.mark("AAPL", 100)
+    r = b.submit(OrderRequest("AAPL", "buy", 10, order_type="market"))
+    assert r.ok and r.status == "filled" and r.filled_qty == 10
+    assert r.fill_price > 100  # adverse: buy fills above ref
+
+
+def test_realistic_limit_not_filled_when_not_crossed():
+    b = MockExecutionAdapter(realistic=True)
+    b.mark("AAPL", 100)
+    # buy-limit at 99 with market at 100 -> not crossed (mock high=low=ref)
+    r = b.submit(OrderRequest("AAPL", "buy", 1, order_type="limit", limit_price=99.0))
+    assert not r.ok and "not filled" in r.detail
+    assert b.list_positions() == []
+
+
+def test_realistic_limit_fills_when_price_reaches_limit():
+    b = MockExecutionAdapter(realistic=True)
+    b.mark("AAPL", 99)  # market down at 99 -> buy-limit 99 crosses
+    r = b.submit(OrderRequest("AAPL", "buy", 1, order_type="limit", limit_price=99.0))
+    assert r.ok and r.filled_qty == 1
+
+
+def test_realistic_partial_fill_caps_at_participation():
+    from backend.execution.fills import FillModelConfig
+
+    b = MockExecutionAdapter(realistic=True,
+                             fill_config=FillModelConfig(max_participation=0.25))
+    b.mark("X", 10)
+    r = b.submit(OrderRequest("X", "buy", 1000, meta={"volume": 1000}))
+    assert r.status == "partial" and r.filled_qty == 250
+    assert b.list_positions()[0]["qty"] == 250
