@@ -21,17 +21,20 @@ def build_llm_client(settings, cfg: dict):
     llm = cfg.get("research", {}).get("llm", {})
     provider = llm.get("provider", "ollama")
 
-    if provider == "ollama":
-        client = _try_ollama(llm)
+    # Build the requested provider, then fall back through the others so the
+    # research layer still works if the primary is unusable.
+    builders = {"ollama": lambda: _try_ollama(llm),
+                "claude": lambda: _try_claude(settings, llm),
+                "gemini": lambda: _try_gemini(settings, llm)}
+    order = [provider] + [p for p in ("ollama", "claude", "gemini") if p != provider]
+    for name in order:
+        build = builders.get(name)
+        if build is None:
+            continue
+        client = build()
         if client is not None:
             return client
-        return _try_claude(settings, llm)  # fallback
-
-    # provider == "claude"
-    client = _try_claude(settings, llm)
-    if client is not None:
-        return client
-    return _try_ollama(llm)  # fallback
+    return None
 
 
 def _try_ollama(llm: dict):
@@ -67,6 +70,28 @@ def _try_claude(settings, llm: dict):
         model=llm.get("model", "claude-haiku-4-5-20251001"),
         model_deep=llm.get("model_deep", "claude-opus-4-8"),
         max_calls_per_min=llm.get("max_calls_per_min", 20),
+        daily_cost_cap_usd=llm.get("daily_cost_cap_usd", 5.0),
+    )
+
+
+def _try_gemini(settings, llm: dict):
+    key = getattr(settings, "google_api_key", "") or getattr(settings, "gemini_api_key", "")
+    if not key:
+        return None
+    try:
+        import google.genai  # noqa: F401 - presence check; client built lazily
+    except Exception:  # noqa: BLE001 - google-genai not installed
+        return None
+    from .gemini_client import GeminiClient
+
+    g = llm.get("gemini", {})
+    return GeminiClient(
+        key,
+        use_case_models=g.get("models"),
+        role_use_cases=g.get("roles"),
+        default_use_case=g.get("default_use_case", "general"),
+        deep_use_case=g.get("deep_use_case", "reasoning"),
+        max_calls_per_min=llm.get("max_calls_per_min", 30),
         daily_cost_cap_usd=llm.get("daily_cost_cap_usd", 5.0),
     )
 

@@ -231,7 +231,17 @@ research:
       contrarian: 1.2
       news_technical: 1.0
   llm:
-    provider: ollama                   # ollama (local, default) | claude
+    provider: ollama                   # ollama (local, default) | claude | gemini
+    # Gemini settings (used when provider=gemini, or as fallback). Needs
+    # GOOGLE_API_KEY/GEMINI_API_KEY in .env + the google-genai package.
+    gemini:
+      default_use_case: general
+      deep_use_case: reasoning
+      models:
+        general: gemini-2.0-flash
+        fast: gemini-2.0-flash
+        reasoning: gemini-2.5-pro
+        lightweight: gemini-2.0-flash-lite
     # Claude settings (used when provider=claude, or as fallback)
     model: claude-haiku-4-5-20251001
     model_deep: claude-opus-4-8
