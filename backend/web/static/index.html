@@ -736,15 +736,18 @@ focusSymbol("MSFT");  // initial chart
 const exG=id=>document.getElementById(id);
 async function exJSON(url,opts){try{const r=await fetch(url,opts);return await r.json();}
   catch(e){return{error:String(e)};}}
-function exNews(d,el){if(d.error)return el.innerHTML="hata: "+d.error;
-  const rows=(d.results||[]).slice(0,12).map(h=>`<div>• <a href="${h.url||'#'}" target="_blank" rel="noopener">${h.headline}</a></div>`).join("");
-  el.innerHTML=`<div>kaynaklar: ${(d.sources||[]).join(", ")||"—"}</div>${rows||"sonuç yok"}`;}
+// XSS guards: escape every untrusted field before innerHTML; allow only http(s) hrefs.
+const exEsc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const exUrl=u=>{try{const x=new URL(u,location.origin);return /^https?:$/.test(x.protocol)?x.href:"#";}catch(e){return "#";}};
+function exNews(d,el){if(d.error)return el.textContent="hata: "+d.error;
+  const rows=(d.results||[]).slice(0,12).map(h=>`<div>• <a href="${exEsc(exUrl(h.url||'#'))}" target="_blank" rel="noopener">${exEsc(h.headline)}</a></div>`).join("");
+  el.innerHTML=`<div>kaynaklar: ${exEsc((d.sources||[]).join(", ")||"—")}</div>${rows||"sonuç yok"}`;}
 async function exNewsSearch(){const q=exG("nwsQ").value,s=exG("nwsSym").value;
   exNews(await exJSON(`/api/news/search?q=${encodeURIComponent(q)}${s?`&symbol=${encodeURIComponent(s)}`:""}`),exG("nwsOut"));}
 async function exNewsLatest(){const s=exG("nwsSym").value;
   exNews(await exJSON(`/api/news/latest${s?`?symbol=${encodeURIComponent(s)}`:""}`),exG("nwsOut"));}
 async function exOrders(){const d=await exJSON("/api/orders");
-  const rows=(d.orders||[]).slice(-15).reverse().map(o=>`<div>${(o.state||"").padEnd(9)} · ${o.request.symbol||""} ${o.request.side||""} ${o.request.qty||""} <span class="k">${o.message||""}</span></div>`).join("");
+  const rows=(d.orders||[]).slice(-15).reverse().map(o=>`<div>${exEsc((o.state||"").padEnd(9))} · ${exEsc(o.request.symbol||"")} ${exEsc(o.request.side||"")} ${exEsc(o.request.qty||"")} <span class="k">${exEsc(o.message||"")}</span></div>`).join("");
   exG("ordOut").innerHTML=rows||"emir yok";}
 async function exTca(){const d=await exJSON("/api/exec/analytics");const s=d.summary||{};
   exG("tcaOut").innerHTML=`n=<span class="k">${s.n||0}</span> · ort. kayma <span class="k">${s.avg_slippage_bps??"—"} bps</span> · fill <span class="k">${s.avg_fill_ratio??"—"}</span>`;}
@@ -758,10 +761,10 @@ async function exGreeks(){const q=`spot=${exG("gS").value}&strike=${exG("gK").va
 async function exAuto(){exG("autoOut").textContent="çalışıyor…";
   const d=await exJSON("/api/agent/auto/cycle",{method:"POST"});
   if(!d.ran)return exG("autoOut").textContent=d.detail||"çalışmadı";
-  const rows=(d.actions||[]).map(a=>`<div>${a.status} · ${a.symbol} ${a.action} ${a.qty} <span style="color:var(--dim)">${a.detail||a.reason||""}</span></div>`).join("");
-  exG("autoOut").innerHTML=`${d.dry_run?"DRY-RUN":"CANLI"} · ${d.n_proposed} öneri${rows}`;}
+  const rows=(d.actions||[]).map(a=>`<div>${exEsc(a.status)} · ${exEsc(a.symbol)} ${exEsc(a.action)} ${exEsc(a.qty)} <span style="color:var(--dim)">${exEsc(a.detail||a.reason||"")}</span></div>`).join("");
+  exG("autoOut").innerHTML=`${d.dry_run?"DRY-RUN":"CANLI"} · ${exEsc(d.n_proposed)} öneri${rows}`;}
 async function exConfig(){const d=await exJSON("/api/config");
-  exG("cfgOut").innerHTML=`<pre style="white-space:pre-wrap;color:var(--dim)">${JSON.stringify(d.config,null,1).slice(0,600)}…</pre>`;}
+  exG("cfgOut").innerHTML=`<pre style="white-space:pre-wrap;color:var(--dim)">${exEsc(JSON.stringify(d.config,null,1).slice(0,600))}…</pre>`;}
 </script>
 </body>
 </html>
