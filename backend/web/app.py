@@ -915,6 +915,79 @@ async def inbox_push(body: InboxBody) -> dict:
     return {"ok": True, "message": msg}
 
 
+@app.get("/api/universe")
+async def universe_view(mode: Optional[str] = None) -> dict:
+    """Universe size + source for a given mode (m7|sp500|nasdaq100|sp500_nasdaq100)."""
+    from ..universe import universe_info
+
+    cfg = {**_config, "universe_mode": (mode or _config.get("universe_mode", "m7"))}
+    return universe_info(cfg)
+
+
+def _run_scan(mode: Optional[str], top_n: Optional[int]) -> dict:
+    """Build the universe + scan it (blocking; call via a thread)."""
+    from ..scanner import Scanner
+    from ..universe import load_universe
+
+    scfg = _config.get("scanner", {})
+    cfg = {**_config, "universe_mode": (mode or _config.get("universe_mode", "m7"))}
+    symbols = load_universe(cfg)
+    res = Scanner(_provider, _config).scan(
+        symbols, timeframe=scfg.get("timeframe", "5m"),
+        lookback=scfg.get("lookback", 60), top_n=int(top_n or scfg.get("top_n", 25)),
+        min_score=scfg.get("min_score", 0))
+    return {"timeframe": res.timeframe, "scanned": res.scanned, "skipped": res.skipped,
+            "candidates": res.candidates,
+            "note": "score = estimated edge (0-100), NOT a profit guarantee"}
+
+
+@app.get("/api/scan")
+async def scan(mode: Optional[str] = None, top_n: Optional[int] = None) -> dict:
+    """Rank the universe by buy-edge score. mode overrides universe_mode for this run."""
+    import asyncio as _a
+
+    out = await _a.to_thread(_run_scan, mode, top_n)
+    await hub.broadcast({"type": "scan", "scanned": out["scanned"],
+                         "n": len(out["candidates"])})
+    return out
+
+
+@app.on_event("startup")
+async def _start_scanner_loop() -> None:
+    """If scanner.enabled, scan the universe every interval_seconds and broadcast;
+    optionally seed the guarded auto-trader with the top candidates."""
+    scfg = _config.get("scanner", {})
+    if not scfg.get("enabled"):
+        return
+    import asyncio as _a
+
+    interval = max(30, int(scfg.get("interval_seconds", 300)))
+
+    async def _loop() -> None:
+        while True:
+            try:
+                out = await _a.to_thread(_run_scan, None, None)
+                await hub.broadcast({"type": "scan", "scanned": out["scanned"],
+                                     "n": len(out["candidates"]),
+                                     "candidates": out["candidates"][:10]})
+                if (scfg.get("feed_auto_trader")
+                        and _config.get("auto_trader", {}).get("enabled")
+                        and _llm is not None):
+                    from ..agent.auto_trader import AutoTrader
+                    from ..mcp.tools import Toolset
+
+                    syms = [c["symbol"] for c in out["candidates"]]
+                    ts = Toolset(_executor, oms=_oms, market_data=None, config=_config)
+                    trader = AutoTrader(ts, _llm, _config.get("auto_trader", {}),
+                                        news=_news_unified)
+                    await _a.to_thread(trader.run_cycle, syms)
+            except Exception:  # noqa: BLE001 - a scan hiccup must not kill the loop
+                pass
+            await _a.sleep(interval)
+
+    _a.create_task(_loop())
+
+
 @app.post("/api/agent/auto/cycle")
 async def auto_trader_cycle() -> dict:
     """Run ONE autonomous decision cycle. Gated by auto_trader.enabled; dry-run by

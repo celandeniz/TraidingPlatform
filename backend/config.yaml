@@ -10,6 +10,13 @@ universe:
   - META
   - TSLA
 
+# How to resolve the watch/scan universe:
+#   m7 (default, the list above) | sp500 | nasdaq100 | sp500_nasdaq100 | custom
+# sp500/nasdaq100 load bundled snapshots from backend/universe_data/.
+# The live 1m runner still streams `universe:` above; the SCANNER uses this mode.
+universe_mode: m7
+universe_extra: []                 # extra symbols appended to any mode
+
 # Active config/account profile. PROFILE env overrides this at process start;
 # /api/profiles/activate can switch it in the running web process.
 active_profile: test
@@ -182,6 +189,19 @@ reflection:
   enabled: false
   use_llm: true
   max_notes: 200
+
+# Universe scanner — rank symbols by a transparent buy-edge SCORE every N seconds.
+# The score (0-100) is an ESTIMATED EDGE, not a profit probability/guarantee.
+# /api/scan works on demand regardless of `enabled`; `enabled` starts a background
+# loop in the web app. Set universe_mode: sp500_nasdaq100 to scan the big universe.
+scanner:
+  enabled: false
+  interval_seconds: 300           # 5-minute cadence for the background loop
+  timeframe: 5m
+  lookback: 60
+  top_n: 25
+  min_score: 0
+  feed_auto_trader: false         # send top candidates into the guarded auto_trader
 
 # Autonomous LLM action loop (Gemini/Claude/Ollama drives the MCP toolset).
 # OFF + dry_run by default. Even when live, every action passes guards + risk +

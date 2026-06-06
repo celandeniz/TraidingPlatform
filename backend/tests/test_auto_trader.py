@@ -77,6 +77,25 @@ def test_max_actions_cap(tmp_path):
     assert sum(1 for a in out["actions"] if a["status"] == "proposed") == 2
 
 
+def test_seed_candidates_injected_into_context(tmp_path):
+    # Scanner candidates passed to run_cycle should reach the LLM context.
+    seen = {}
+
+    class _CapturingLLM:
+        def structured(self, *, user, **kw):
+            seen["user"] = user
+            return {"actions": []}
+
+    broker = MockExecutionAdapter(starting_cash=100_000)
+    broker.mark("AAPL", 100)
+    oms = OrderManager(broker, ledger_path=tmp_path / "led.jsonl")
+    ts = Toolset(broker, oms=oms, market_data=None, config={})
+    at = AutoTrader(ts, _CapturingLLM(), {"enabled": True, "dry_run": True},
+                    store_path=tmp_path / "auto.jsonl")
+    at.run_cycle(seed_candidates=[{"symbol": "NVDA", "score": 88}])
+    assert "scanner_candidates" in seen["user"] and "NVDA" in seen["user"]
+
+
 def test_qty_capped_at_max(tmp_path):
     at, _ = _trader(tmp_path, [{"symbol": "AAPL", "action": "buy", "qty": 999,
                                 "confidence": 0.9}],

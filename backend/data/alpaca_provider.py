@@ -72,6 +72,37 @@ class AlpacaProvider:
         df = df[["open", "high", "low", "close", "volume"]].tail(lookback)
         return df
 
+    def get_recent_bars_multi(
+        self, symbols: list[str], timeframe: str, lookback: int, batch: int = 150
+    ) -> dict:
+        """Batched multi-symbol bars -> {symbol: DataFrame}. Used by the scanner to
+        pull hundreds of names in a handful of requests instead of one-per-symbol.
+        A failed batch is skipped (those symbols just won't appear) so one bad
+        ticker never sinks the whole scan."""
+        minutes = _lookback_minutes(timeframe, lookback)
+        start = pd.Timestamp.utcnow() - pd.Timedelta(minutes=minutes * 6 + 6000)
+        tf = parse_timeframe(timeframe)
+        out: dict[str, pd.DataFrame] = {}
+        for i in range(0, len(symbols), batch):
+            chunk = symbols[i:i + batch]
+            try:
+                resp = self._hist.get_stock_bars(StockBarsRequest(
+                    symbol_or_symbols=chunk, timeframe=tf,
+                    start=start.to_pydatetime(), feed=self._feed))
+                df = resp.df
+            except Exception:  # noqa: BLE001 - skip a failed batch
+                continue
+            if df is None or df.empty:
+                continue
+            cols = ["open", "high", "low", "close", "volume"]
+            if isinstance(df.index, pd.MultiIndex):
+                for sym in chunk:
+                    if sym in df.index.get_level_values("symbol"):
+                        out[sym] = df.xs(sym, level="symbol")[cols].tail(lookback)
+            else:  # single symbol came back flat
+                out[chunk[0]] = df[cols].tail(lookback)
+        return out
+
     async def stream_bars(self, symbols: list[str], handler: BarHandler) -> None:
         self._stream = StockDataStream(self._key, self._secret, feed=self._feed)
 

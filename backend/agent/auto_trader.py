@@ -95,10 +95,14 @@ class AutoTrader:
         return out.get("actions", []) if isinstance(out, dict) else []
 
     # --- cycle -------------------------------------------------------------
-    def run_cycle(self) -> dict:
+    def run_cycle(self, seed_candidates: Optional[list] = None) -> dict:
         if not self._cfg.get("enabled"):
             return {"ran": False, "detail": "auto_trader disabled"}
         context = self.build_context()
+        if seed_candidates:
+            # Scanner-ranked buy candidates (estimated edge, not a guarantee) the LLM
+            # should consider this cycle, alongside positions/signals/news.
+            context["scanner_candidates"] = seed_candidates[:15]
         proposed = self.decide(context)
         dry_run = self._cfg.get("dry_run", True)
         whitelist = {s.upper() for s in (self._cfg.get("symbol_whitelist") or [])}

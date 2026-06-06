@@ -25,3 +25,4 @@ requests>=2.31
 # python-docx>=1.1     # report export to Word (.docx)
 # reportlab>=4.0       # report export to PDF
 # (DeepSeek/Qwen provider uses requests — no extra dependency)
+# lxml>=5.0             # only for scripts/refresh_universe.py (NASDAQ-100 from Wikipedia)

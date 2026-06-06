@@ -722,6 +722,21 @@ focusSymbol("MSFT");  // initial chart
       <div class="out" id="autoOut">auto_trader.enabled gerektirir · varsayılan dry-run.</div>
     </div>
 
+    <div class="card" style="grid-column:1/-1"><h3>🔭 Tarayıcı — S&amp;P 500 / NASDAQ-100 (5dk skor)</h3>
+      <div class="row">
+        <select id="scMode" title="evren" aria-label="universe mode">
+          <option value="sp500_nasdaq100">S&amp;P500+NASDAQ100</option>
+          <option value="sp500">S&amp;P 500</option>
+          <option value="nasdaq100">NASDAQ-100</option>
+          <option value="m7">M7</option>
+        </select>
+        <input id="scTop" value="25" title="top N" aria-label="top N" style="width:54px"/>
+        <button type="button" onclick="exScan()">Tara</button>
+        <span class="bb">Skor = tahmini edge (0-100), kâr garantisi <b>değil</b>.</span>
+      </div>
+      <div class="out" id="scOut" style="max-height:320px">Evreni 5dk barlarla tarar, alım adaylarını skora göre sıralar.</div>
+    </div>
+
     <div class="card"><h3>📄 Rapor indir</h3>
       <div class="row">
         <input id="rpSym" value="MSFT" title="sembol" aria-label="symbol"/>
@@ -776,6 +791,13 @@ async function exAuto(){exG("autoOut").textContent="çalışıyor…";
   if(!d.ran)return exG("autoOut").textContent=d.detail||"çalışmadı";
   const rows=(d.actions||[]).map(a=>`<div>${exEsc(a.status)} · ${exEsc(a.symbol)} ${exEsc(a.action)} ${exEsc(a.qty)} <span style="color:var(--dim)">${exEsc(a.detail||a.reason||"")}</span></div>`).join("");
   exG("autoOut").innerHTML=`${d.dry_run?"DRY-RUN":"CANLI"} · ${exEsc(d.n_proposed)} öneri${rows}`;}
+async function exScan(){const mode=exG("scMode").value,top=exG("scTop").value||"25";
+  exG("scOut").textContent="taranıyor… (büyük evren birkaç sn sürebilir)";
+  const d=await exJSON(`/api/scan?mode=${encodeURIComponent(mode)}&top_n=${encodeURIComponent(top)}`);
+  if(d.error)return exG("scOut").textContent="hata: "+d.error;
+  const head=`<div class="bb">taranan: <b>${exEsc(d.scanned)}</b> · atlanan: ${exEsc(d.skipped)} · ${exEsc(d.note||"")}</div>`;
+  const rows=(d.candidates||[]).map((c,i)=>`<div>${i+1}. <b>${exEsc(c.symbol)}</b> · skor <b>${exEsc(c.score)}</b> · ${exEsc(c.regime)} · mom ${exEsc(c.momentum_pct)}% · RSI ${exEsc(c.rsi)} · son ${exEsc(c.last)}</div>`).join("");
+  exG("scOut").innerHTML=head+(rows||"aday yok");}
 async function exConfig(){const d=await exJSON("/api/config");
   exG("cfgOut").innerHTML=`<pre style="white-space:pre-wrap;color:var(--dim)">${exEsc(JSON.stringify(d.config,null,1).slice(0,600))}…</pre>`;}
 async function exReport(){const sym=exG("rpSym").value||"MSFT",fmt=exG("rpFmt").value;
