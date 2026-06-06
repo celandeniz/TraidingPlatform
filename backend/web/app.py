@@ -332,7 +332,9 @@ async def committee(symbol: str) -> dict:
     sym = symbol.upper()
 
     def _run():
-        headlines = [h.headline for h in _news.recent_headlines(sym, limit=3)] if _news else []
+        # Feed the dedicated sentiment analyst from ALL sources (Alpaca+RSS+Yahoo),
+        # not just 3 Alpaca headlines.
+        headlines = [h.headline for h in _news_unified.latest(symbol=sym, limit=12)]
         gate = gate_eval("buy", regime="range", news_ages_minutes=[],
                          earnings_in_days=None, gap_pct=None)
         return run_committee(_llm, sym, "buy", context=f"On-demand review of {sym}.",

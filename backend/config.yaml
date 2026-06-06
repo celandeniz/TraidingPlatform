@@ -242,6 +242,7 @@ research:
       sentiment: 1.0
       contrarian: 1.2
       news_technical: 1.0
+      sentiment_news: 1.0            # dedicated multi-source news-sentiment analyst
   llm:
     provider: ollama                   # ollama (local) | claude | gemini | deepseek | openai
     # OpenAI-compatible cloud (DeepSeek default; point base_url at DashScope/

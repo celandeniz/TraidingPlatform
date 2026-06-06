@@ -23,6 +23,18 @@ class NewsTechnicalAnalyst(Persona):
     )
 
 
+class SentimentNewsAnalyst(Persona):
+    name = "sentiment_news"
+    system = (
+        "You are a financial news-sentiment analyst. Given a batch of recent "
+        "headlines for a symbol (aggregated across multiple sources), judge the "
+        "NET tone (bullish/bearish), how fresh/material the catalysts are, and "
+        "whether sentiment favors long/short/pass on a short horizon. Weight "
+        "concrete catalysts (earnings, guidance, M&A, regulatory) over noise. "
+        "Not investment advice."
+    )
+
+
 def _vote_to_report(vote, role: str) -> AnalystReport:
     available = "unavailable" not in vote.rationale
     return AnalystReport(role=role, side=vote.side, confidence=vote.confidence,
@@ -44,6 +56,12 @@ def run_analysts(
     )
     nt_vote = NewsTechnicalAnalyst(client).analyze(symbol, nt_context, deep=deep)
     reports.append(_vote_to_report(nt_vote, "news_technical"))
+    # Dedicated news-sentiment lens over the FULL (multi-source) headline batch.
+    if headlines:
+        sn_context = "Recent headlines (multi-source):\n" + "\n".join(
+            f"- {h}" for h in headlines[:12])
+        sn_vote = SentimentNewsAnalyst(client).analyze(symbol, sn_context, deep=deep)
+        reports.append(_vote_to_report(sn_vote, "sentiment_news"))
     return reports
 
 

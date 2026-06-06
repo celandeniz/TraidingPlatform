@@ -42,8 +42,9 @@ def _gate():
     return CatalystVerdict(verdict="ALLOW", reasons=["clear"])
 
 
-def _full_run_payloads(rounds=1, final="long"):
-    return ([_vote("long")] * 5 + [_debate()] * (2 * rounds) + [_trade(final)])
+def _full_run_payloads(rounds=1, final="long", n_analysts=6):
+    # 6 analysts when headlines present: 4 personas + news_technical + sentiment_news
+    return ([_vote("long")] * n_analysts + [_debate()] * (2 * rounds) + [_trade(final)])
 
 
 def test_committee_full_pipeline_call_budget():
@@ -53,7 +54,8 @@ def test_committee_full_pipeline_call_budget():
                       gate=_gate(), bb_meta={"bb_score": 2}, cfg={"debate_rounds": rounds})
     assert v.available is True
     assert v.side == "long"
-    assert c.calls == 5 + 2 * rounds + 1  # analysts + debate + trader (risk python)
+    # 6 analysts (incl. dedicated sentiment_news) + debate + trader (risk is python)
+    assert c.calls == 6 + 2 * rounds + 1
     assert v.rounds_run == rounds
 
 
