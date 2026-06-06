@@ -13,12 +13,14 @@ as the CLI runner; signals are broadcast to all connected browsers.
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
@@ -30,7 +32,8 @@ from ..research.copilot_agent import CopilotAgent
 from ..research.llm_factory import build_llm_client
 from ..research.news_provider import AlpacaNewsProvider
 from ..runner import Engine
-from ..settings import get_config, get_settings
+from ..settings import BACKEND_DIR, REPO_DIR, get_config, get_raw_config, get_settings
+from ..profiles import feature_toggles, profile_summaries, set_active_profile
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -216,6 +219,10 @@ class OrderBody(BaseModel):
     qty: float = 1
 
 
+class ProfileActivateBody(BaseModel):
+    name: str
+
+
 class ReplayBody(BaseModel):
     bars: int = 200
     speed_ms: int = 120  # delay between bars, to animate the UI
@@ -226,9 +233,152 @@ async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/setup")
+async def setup() -> FileResponse:
+    return FileResponse(STATIC_DIR / "setup.html")
+
+
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)
+
+
+def _rebuild_runtime_for_config(config: dict) -> None:
+    """Rebuild config-dependent module globals after an in-process profile switch."""
+    global _config, _routing, _executor, _rcfg, _exec_analytics, _oms, _ALLOWED_WS_ORIGINS
+    _config = config
+    _routing = build_routing_executor(_settings, _config)
+    risk_cfg_raw = _config.get("risk", {})
+    if risk_cfg_raw.get("enabled", False):
+        _executor = RiskManager(
+            _routing,
+            RiskConfig(
+                enabled=True,
+                risk_per_trade_pct=risk_cfg_raw.get("risk_per_trade_pct", 0.5),
+                max_concurrent_positions=risk_cfg_raw.get("max_concurrent_positions", 5),
+                max_position_pct=risk_cfg_raw.get("max_position_pct", 20.0),
+                max_daily_loss_pct=risk_cfg_raw.get("max_daily_loss_pct", 3.0),
+            ),
+        )
+    else:
+        _executor = _routing
+    _rcfg = _config.get("research", {})
+    _exec_analytics = ExecutionAnalytics()
+    _oms = OrderManager(_executor, analytics=_exec_analytics)
+    _ALLOWED_WS_ORIGINS = set(_config.get("web", {}).get("allowed_ws_origins", []) or [])
+
+
+def _importable(module: str) -> bool:
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _env_file_value(env_name: str) -> str:
+    for path in (REPO_DIR / ".env", BACKEND_DIR / ".env"):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", 1)
+            if key.strip() == env_name:
+                return value.split("#", 1)[0].strip().strip('"').strip("'")
+    return ""
+
+
+def _env_or_setting(env_name: str, attr: str | None = None) -> bool:
+    if os.environ.get(env_name):
+        return True
+    return bool(_env_file_value(env_name))
+
+
+def _llm_provider_status() -> dict:
+    statuses = {
+        "anthropic": _importable("anthropic") and _env_or_setting("ANTHROPIC_API_KEY"),
+        # Gemini uses the google-genai SDK (module `google.genai`).
+        "gemini": _importable("google.genai")
+        and (_env_or_setting("GOOGLE_API_KEY") or _env_or_setting("GEMINI_API_KEY")),
+        # DeepSeek/OpenAI-compat clients call the HTTP API via requests (no openai pkg).
+        "deepseek": _importable("requests") and _env_or_setting("DEEPSEEK_API_KEY"),
+        "openai": _importable("requests") and _env_or_setting("OPENAI_API_KEY"),
+    }
+    try:
+        import urllib.request
+
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=0.25) as resp:
+            statuses["ollama"] = 200 <= resp.status < 500
+    except Exception:  # noqa: BLE001 - local model server is optional
+        statuses["ollama"] = False
+    return statuses
+
+
+@app.get("/api/profiles")
+async def profiles_api() -> dict:
+    return {
+        "profiles": profile_summaries(get_raw_config()),
+        "active": _config.get("active_profile"),
+        "active_features": feature_toggles(_config),
+    }
+
+
+@app.post("/api/profiles/activate")
+async def profiles_activate(body: ProfileActivateBody) -> dict:
+    profiles = _config.get("profiles") or {}
+    if body.name not in profiles:
+        raise HTTPException(status_code=400, detail=f"unknown profile: {body.name}")
+    set_active_profile(body.name)
+    get_config.cache_clear()
+    config = get_config()
+    _rebuild_runtime_for_config(config)
+    return {
+        "ok": True,
+        "active": config.get("active_profile"),
+        "active_features": feature_toggles(config),
+    }
+
+
+@app.get("/api/setup/status")
+async def setup_status() -> dict:
+    optional_deps = {
+        "openbb": _importable("openbb"),
+        "ib_async": _importable("ib_async"),
+        "yfinance": _importable("yfinance"),
+        "google-genai": _importable("google.genai"),
+        "perspective": _importable("perspective"),
+        "mcp": _importable("mcp"),
+        "croniter": _importable("croniter"),
+        "feedparser": _importable("feedparser"),
+        "python_docx": _importable("docx"),
+        "reportlab": _importable("reportlab"),
+    }
+    api_keys_set = {
+        "ALPACA_API_KEY": _env_or_setting("ALPACA_API_KEY", "alpaca_api_key"),
+        "ALPACA_SECRET_KEY": _env_or_setting("ALPACA_SECRET_KEY", "alpaca_api_secret"),
+        "ALPACA_BASE_URL": _env_or_setting("ALPACA_BASE_URL", "alpaca_paper_base_url"),
+        "CCXT_API_KEY": _env_or_setting("CCXT_API_KEY", "ccxt_api_key"),
+        "CCXT_SECRET_KEY": _env_or_setting("CCXT_SECRET_KEY", "ccxt_api_secret"),
+        "ANTHROPIC_API_KEY": _env_or_setting("ANTHROPIC_API_KEY", "anthropic_api_key"),
+        "GOOGLE_API_KEY": _env_or_setting("GOOGLE_API_KEY", "google_api_key"),
+        "GEMINI_API_KEY": _env_or_setting("GEMINI_API_KEY", "gemini_api_key"),
+        "DEEPSEEK_API_KEY": _env_or_setting("DEEPSEEK_API_KEY", "deepseek_api_key"),
+        "OPENAI_API_KEY": _env_or_setting("OPENAI_API_KEY", "openai_api_key"),
+        "OPENAI_BASE_URL": _env_or_setting("OPENAI_BASE_URL", "openai_base_url"),
+        "FMP_API_KEY": _env_or_setting("FMP_API_KEY", "fmp_api_key"),
+        "POLYGON_API_KEY": _env_or_setting("POLYGON_API_KEY", "polygon_api_key"),
+        "LIVE_TRADING": _env_or_setting("LIVE_TRADING", "live_trading"),
+        "TRADING_MODE": _env_or_setting("TRADING_MODE", "trading_mode"),
+        "PROFILE": _env_or_setting("PROFILE", "profile"),
+    }
+    return {
+        "optional_deps": optional_deps,
+        "api_keys_set": api_keys_set,
+        "llm_providers_reachable": _llm_provider_status(),
+    }
 
 
 @app.get("/api/positions")

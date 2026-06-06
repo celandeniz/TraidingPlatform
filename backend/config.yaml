@@ -10,6 +10,66 @@ universe:
   - META
   - TSLA
 
+# Active config/account profile. PROFILE env overrides this at process start;
+# /api/profiles/activate can switch it in the running web process.
+active_profile: test
+profiles:
+  test:
+    name: test
+    mode: test
+    broker: alpaca_paper
+    brokers:
+      crypto:
+        executor: ccxt_sandbox
+        sandbox: true
+    risk:
+      enabled: false
+      risk_per_trade_pct: 0.25
+      max_concurrent_positions: 2
+      max_position_pct: 5
+      max_daily_loss_pct: 1.0
+    guards:
+      enabled: false
+    features:
+      research: true
+      committee: false
+      auto_trader: false
+      marketdata_backend: null
+      news_rss: false
+      perspective: false
+      reflection: false
+      realistic_fills: false
+  live:
+    name: live
+    mode: live
+    broker: alpaca_live
+    brokers:
+      crypto:
+        executor: ccxt_live
+        sandbox: false
+    risk:
+      enabled: true
+      risk_per_trade_pct: 0.25
+      max_concurrent_positions: 3
+      max_position_pct: 10
+      max_daily_loss_pct: 2.0
+    guards:
+      enabled: true
+      symbol_whitelist: []
+      cooldown_seconds: 60
+    auto_trader:
+      enabled: false
+      dry_run: true
+    features:
+      research: true
+      committee: false
+      auto_trader: false
+      marketdata_backend: null
+      news_rss: false
+      perspective: false
+      reflection: false
+      realistic_fills: true
+
 # Which strategies are active. Adding a strategy = register a key + list it here.
 # Mean-reversion: spike_fade, rsi_reversion, vwap_reversion.
 # Trend/breakout: ema_momentum, donchian_breakout, macd_cross, keltner_breakout, atr_trend.

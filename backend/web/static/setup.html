@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>TraidingPlatform Setup</title>
+  <style>
+    :root{
+      --bg:#0b0f14;--panel:#111822;--panel2:#0f151d;--line:#253142;
+      --text:#e6edf3;--dim:#8b98a8;--green:#35c46a;--red:#ff5d5d;--blue:#58a6ff;
+      --chip:#17202c;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+    header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line);background:var(--panel2)}
+    h1{font-size:18px;margin:0}
+    main{padding:16px 18px;display:grid;grid-template-columns:minmax(280px,420px) 1fr;gap:14px}
+    section{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+    h2{font-size:13px;margin:0 0 12px;color:var(--dim);letter-spacing:.4px;text-transform:uppercase}
+    a{color:var(--blue);text-decoration:none}
+    .profiles{display:flex;flex-direction:column;gap:10px}
+    .profile{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--panel2)}
+    .profile.active{border-color:var(--blue)}
+    .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .name{font-weight:700}
+    .meta,.small{color:var(--dim);font-size:12px}
+    button{background:var(--chip);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:6px 9px;font:inherit;cursor:pointer}
+    button:disabled{opacity:.45;cursor:default}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+    .item{display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:8px 10px;min-height:38px}
+    .dot{width:9px;height:9px;border-radius:50%;background:var(--red);flex:0 0 auto}
+    .dot.ok{background:var(--green)}
+    .label{overflow-wrap:anywhere}
+    @media (max-width:820px){main{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>TraidingPlatform Setup</h1>
+  <a href="/">Dashboard</a>
+</header>
+<main>
+  <section>
+    <h2>Profiles</h2>
+    <div id="profiles" class="profiles"></div>
+  </section>
+  <div>
+    <section>
+      <h2>Active Profile Features</h2>
+      <div id="features" class="grid"></div>
+    </section>
+    <section style="margin-top:14px">
+      <h2>Optional Dependencies</h2>
+      <div id="deps" class="grid"></div>
+    </section>
+    <section style="margin-top:14px">
+      <h2>API Keys / Env</h2>
+      <div id="keys" class="grid"></div>
+    </section>
+    <section style="margin-top:14px">
+      <h2>LLM Providers</h2>
+      <div id="llms" class="grid"></div>
+    </section>
+  </div>
+</main>
+<script>
+const byId = id => document.getElementById(id);
+
+function clear(node){
+  while(node.firstChild) node.removeChild(node.firstChild);
+}
+
+function statusItem(name, value){
+  const item = document.createElement("div");
+  item.className = "item";
+  const label = document.createElement("span");
+  label.className = "label";
+  label.textContent = name;
+  const right = document.createElement("span");
+  right.className = "row";
+  const text = document.createElement("span");
+  text.className = "small";
+  text.textContent = value === null || value === undefined ? "off" : String(value);
+  const dot = document.createElement("span");
+  dot.className = value ? "dot ok" : "dot";
+  right.appendChild(text);
+  right.appendChild(dot);
+  item.appendChild(label);
+  item.appendChild(right);
+  return item;
+}
+
+function renderMap(id, data){
+  const box = byId(id);
+  clear(box);
+  Object.keys(data || {}).sort().forEach(key => box.appendChild(statusItem(key, data[key])));
+}
+
+function renderProfiles(data){
+  const box = byId("profiles");
+  clear(box);
+  (data.profiles || []).forEach(profile => {
+    const card = document.createElement("div");
+    card.className = profile.name === data.active ? "profile active" : "profile";
+    const top = document.createElement("div");
+    top.className = "row";
+    const name = document.createElement("div");
+    name.className = "name";
+    name.textContent = profile.name;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = profile.name === data.active ? "Active" : "Activate";
+    btn.disabled = profile.name === data.active;
+    btn.addEventListener("click", () => activate(profile.name));
+    top.appendChild(name);
+    top.appendChild(btn);
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = `${profile.mode || "test"} · ${profile.broker || "default"}`;
+    card.appendChild(top);
+    card.appendChild(meta);
+    box.appendChild(card);
+  });
+  renderMap("features", data.active_features || {});
+}
+
+async function getJSON(url, opts){
+  const res = await fetch(url, opts);
+  if(!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function activate(name){
+  await getJSON("/api/profiles/activate", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({name})
+  });
+  await load();
+}
+
+async function load(){
+  try{
+    const profiles = await getJSON("/api/profiles");
+    renderProfiles(profiles);
+    const status = await getJSON("/api/setup/status");
+    renderMap("deps", status.optional_deps || {});
+    renderMap("keys", status.api_keys_set || {});
+    renderMap("llms", status.llm_providers_reachable || {});
+  }catch(err){
+    renderMap("features", {error:false});
+    byId("features").firstChild.querySelector(".label").textContent = String(err);
+  }
+}
+
+load();
+</script>
+</body>
+</html>
