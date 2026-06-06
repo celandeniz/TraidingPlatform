@@ -3,23 +3,30 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>M7 Spike-Fade — Paper Dashboard</title>
+<title>TraidingPlatform Dashboard</title>
 <style>
   :root{
-    --bg:#0a0e14; --panel:#121823; --panel2:#0e141d; --line:#1e2733;
-    --text:#d7e0ea; --dim:#7d8a9a; --green:#27d796; --red:#ff5c70;
-    --amber:#ffb547; --blue:#4aa3ff; --chip:#1a2230;
+    --bg:#090d12; --panel:#111820; --panel2:#0d131a; --panel3:#151e28; --line:#243141;
+    --text:#e1e8ef; --dim:#8996a5; --green:#2ed18f; --red:#ff6478;
+    --amber:#f2b84b; --blue:#63a8ff; --cyan:#5fd3d0; --chip:#192331;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
     font:14px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-  header{display:flex;align-items:center;gap:18px;padding:12px 18px;
-    background:linear-gradient(180deg,#0e141d,#0a0e14);border-bottom:1px solid var(--line)}
-  header h1{font-size:15px;margin:0;letter-spacing:.3px;font-weight:650}
-  .badge{font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;
+  a{color:var(--blue);text-decoration:none}
+  header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;padding:12px 18px;
+    background:#0b1118;border-bottom:1px solid var(--line)}
+  header h1{font-size:16px;margin:0;letter-spacing:.2px;font-weight:750;white-space:nowrap}
+  .brand-sub{font-size:11px;color:var(--dim);margin-top:1px}
+  .badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;
     background:rgba(74,163,255,.14);color:var(--blue);border:1px solid rgba(74,163,255,.3)}
   .badge.paper{background:rgba(39,215,150,.13);color:var(--green);
     border-color:rgba(39,215,150,.32)}
+  .badge.live{background:rgba(255,92,112,.15);color:var(--red);border-color:rgba(255,92,112,.36)}
+  .badge.profile{background:rgba(95,211,208,.12);color:var(--cyan);border-color:rgba(95,211,208,.34)}
+  .badge.warn{background:rgba(242,184,75,.13);color:var(--amber);border-color:rgba(242,184,75,.35)}
+  .header-badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .disclaimer{border-left:1px solid var(--line);padding-left:14px;color:var(--dim);font-size:12px;max-width:310px}
   .spacer{flex:1}
   .stat{font-size:12px;color:var(--dim)}
   .stat b{color:var(--text);font-weight:650}
@@ -31,11 +38,26 @@
     background:var(--chip);color:var(--text);padding:6px 12px;transition:.12s}
   button:hover{border-color:#33425a}
   button.primary{background:rgba(74,163,255,.16);border-color:rgba(74,163,255,.4);color:#bcdcff}
+  .shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:calc(100vh - 65px)}
+  nav{position:sticky;top:65px;height:calc(100vh - 65px);overflow:auto;border-right:1px solid var(--line);
+    background:var(--panel2);padding:14px 12px}
+  nav a{display:block;color:var(--dim);padding:8px 10px;border-radius:8px;font-size:13px;font-weight:650}
+  nav a:hover,nav a.active{background:var(--chip);color:var(--text)}
+  nav .nav-k{margin:14px 10px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#667383}
+  .content{min-width:0}
   .controls{display:flex;gap:8px;align-items:center;padding:10px 18px;
-    border-bottom:1px solid var(--line);background:var(--panel2)}
-  main{display:grid;grid-template-columns:1.6fr 1fr;gap:14px;padding:14px 18px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+    border-bottom:1px solid var(--line);background:var(--panel2);position:sticky;top:65px;z-index:4}
+  main{display:block;padding:0 18px 24px}
+  .section{scroll-margin-top:126px;padding-top:18px}
+  .section-head{display:flex;align-items:end;justify-content:space-between;gap:14px;margin:0 0 10px}
+  .section h2{font-size:16px;letter-spacing:.2px;margin:0;font-weight:750}
+  .section-note{font-size:12px;color:var(--dim)}
+  .grid-2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr);gap:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
+    margin:0;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:650}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
     margin:0;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:650}
   table{width:100%;border-collapse:collapse}
   th,td{text-align:left;padding:9px 12px;font-variant-numeric:tabular-nums}
@@ -72,10 +94,12 @@
   @keyframes fl{from{background:rgba(74,163,255,.22)}to{background:transparent}}
   .muted{color:var(--dim);padding:16px;text-align:center}
   .full{grid-column:1/-1}
-  .qty{width:54px;background:var(--chip);color:var(--text);border:1px solid var(--line);
+  input,select,.qty{background:var(--chip);color:var(--text);border:1px solid var(--line);
     border-radius:6px;padding:4px 6px}
+  .qty{width:54px}
+  .wide{width:150px}
   .bt-controls{display:flex;gap:12px;align-items:center;padding:10px 14px;flex-wrap:wrap}
-  #btResult{padding:6px 14px 14px}
+  .panel-body,#btResult{padding:12px 14px}
   .bt-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 10px}
   .bt-m{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
   .bt-k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim)}
@@ -84,6 +108,12 @@
   .bt-ai{line-height:1.5;margin-top:4px}
   #tvchart{border-top:1px solid var(--line)}
   #btchart,#btTrades,#scTable{padding:0 14px 12px}
+  .out{font-size:12px;color:var(--dim);max-height:320px;overflow:auto}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .k{color:var(--text);font-weight:700}
+  .workflow{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .workflow .card{border-color:#314357}
+  .inline-links{display:flex;gap:12px;flex-wrap:wrap}
   .bt-tt{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
   .bt-tt th{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--dim);
     text-align:left;padding:6px 8px;position:sticky;top:0;background:var(--panel)}
@@ -94,13 +124,30 @@
     width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%}
   .selbadge.ok{background:rgba(39,215,150,.18);color:var(--green)}
   .selbadge.no{background:rgba(255,92,112,.16);color:var(--red)}
+  @media (max-width:980px){
+    header{align-items:flex-start;flex-wrap:wrap}
+    .shell{grid-template-columns:1fr}
+    nav{position:static;height:auto;display:flex;overflow:auto;gap:4px;border-right:0;border-bottom:1px solid var(--line)}
+    nav .nav-k{display:none}
+    nav a{white-space:nowrap}
+    .controls{top:112px;overflow:auto}
+    .grid-2,.grid-3,.workflow{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
 <header>
-  <h1>M7 Spike-Fade</h1>
-  <span class="badge paper" id="mode">PAPER</span>
+  <div>
+    <h1>TraidingPlatform</h1>
+    <div class="brand-sub">M7 Spike-Fade control surface</div>
+  </div>
+  <div class="header-badges">
+    <span class="badge profile" id="profileBadge">PROFILE —</span>
+    <span class="badge paper" id="mode">PAPER MODE</span>
+    <span class="badge warn" id="riskBadge">RISK —</span>
+  </div>
   <span class="stat"><span class="dot" id="conn"></span><span id="connTxt">connecting…</span></span>
+  <div class="disclaimer">Score = estimated edge, not a guarantee. Paper mode by default.</div>
   <div class="spacer"></div>
   <span class="stat">Equity <b id="equity">—</b></span>
   <span class="stat">Cash <b id="cash">—</b></span>
@@ -108,120 +155,289 @@
   <span class="stat" id="clock">—</span>
 </header>
 
-<div class="controls">
-  <button type="button" class="primary" id="replayBtn">▶ Replay recent bars (live-like)</button>
-  <button type="button" id="refreshBtn">↻ Refresh positions</button>
-  <span class="stat" id="replayState"></span>
-  <div class="spacer"></div>
-  <label class="stat" for="qty">Order qty
-    <input id="qty" class="qty" type="number" value="1" min="1" step="1" title="Order quantity (shares)"/>
-  </label>
+<div class="shell">
+  <nav id="sideNav" aria-label="Dashboard sections">
+    <div class="nav-k">Trading</div>
+    <a href="#live" class="active">Live / Signals</a>
+    <a href="#positionsSection">Positions</a>
+    <div class="nav-k">Validation</div>
+    <a href="#validation">Backtest & Validation</a>
+    <a href="#scanner">Scanner</a>
+    <div class="nav-k">Research</div>
+    <a href="#research">Research / News</a>
+    <a href="#automation">Automation</a>
+    <a href="#reports">Reports</a>
+    <a href="#setupProfiles">Setup / Profiles</a>
+  </nav>
+
+  <div class="content">
+    <div class="controls">
+      <button type="button" class="primary" id="replayBtn">Replay recent bars</button>
+      <button type="button" id="refreshBtn">Refresh positions</button>
+      <span class="stat" id="replayState"></span>
+      <div class="spacer"></div>
+      <label class="stat" for="qty">Order qty
+        <input id="qty" class="qty" type="number" value="1" min="1" step="1" title="Order quantity (shares)"/>
+      </label>
+    </div>
+
+    <main>
+      <section class="section" id="live">
+        <div class="section-head">
+          <div>
+            <h2>Live / Signals</h2>
+            <div class="section-note">Active positions, live price feed, and signal stream are the primary workflow entry.</div>
+          </div>
+        </div>
+        <div class="workflow">
+          <section class="card">
+            <h2>Watchlist & Signals</h2>
+            <table>
+              <thead><tr>
+                <th>Symbol</th><th>Last</th><th>z</th><th>RSI</th>
+                <th>Regime</th><th>Signal</th><th>BB</th><th>Trade</th>
+              </tr></thead>
+              <tbody id="grid"></tbody>
+            </table>
+          </section>
+          <section class="card">
+            <h2>Open Positions</h2>
+            <table>
+              <thead><tr><th>Symbol</th><th>Qty</th><th>Avg</th><th>Last</th><th>P&L</th></tr></thead>
+              <tbody id="positions"><tr><td colspan="5" class="muted">No open positions</td></tr></tbody>
+            </table>
+          </section>
+        </div>
+        <section class="card">
+          <h2>Chart — <span id="chartSym">MSFT</span> (TradingView)</h2>
+          <div id="tvchart" style="height:420px"></div>
+        </section>
+      </section>
+
+      <section class="section" id="positionsSection">
+        <div class="section-head">
+          <div>
+            <h2>Positions</h2>
+            <div class="section-note">Order ledger, fills, and transaction-cost analytics.</div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <section class="card"><h3>Order Book / Ledger</h3>
+            <div class="bt-controls"><button type="button" id="ordersRefresh">Refresh ledger</button></div>
+            <div class="panel-body out" id="ordOut">No staged or pushed orders loaded.</div>
+          </section>
+          <section class="card"><h3>Fills / TCA</h3>
+            <div class="bt-controls"><button type="button" id="tcaRefresh">Refresh TCA</button></div>
+            <div class="panel-body out" id="tcaOut">Transaction-cost analytics summary.</div>
+          </section>
+        </div>
+        <section class="card" style="margin-top:14px">
+          <h2>Trade Tape</h2>
+          <div id="tape"><div class="muted">Waiting for signals. Use replay or live stream.</div></div>
+        </section>
+      </section>
+
+      <section class="section" id="validation">
+        <div class="section-head">
+          <div>
+            <h2>Backtest & Validation</h2>
+            <div class="section-note">Backtest runner, walk-forward validation, saved scenario grid, and regime-filter selection.</div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <section class="card">
+            <h2>Backtest Runner</h2>
+            <div class="bt-controls">
+              <label class="stat" for="btStrat">Strategy
+                <select id="btStrat" class="wide">
+                  <option value="spike_fade">spike_fade</option>
+                  <option value="ema_momentum">ema_momentum</option>
+                  <option value="donchian">donchian</option>
+                  <option value="rsi_reversion">rsi_reversion</option>
+                  <option value="macd_cross">macd_cross</option>
+                  <option value="vwap_reversion">vwap_reversion</option>
+                  <option value="keltner_breakout">keltner_breakout</option>
+                  <option value="atr_trend">atr_trend</option>
+                </select>
+              </label>
+              <label class="stat" for="btTf">TF
+                <select id="btTf" class="qty">
+                  <option>1m</option><option>3m</option><option selected>5m</option>
+                  <option>15m</option><option>30m</option><option>45m</option><option>1h</option>
+                </select>
+              </label>
+              <span class="stat">TP% <input id="btTp" class="qty" type="number" value="2.0" step="0.1" title="take profit %"></span>
+              <span class="stat">SL% <input id="btSl" class="qty" type="number" value="1.5" step="0.1" title="stop loss %"></span>
+              <button type="button" class="primary" id="btRun">Run backtest</button>
+              <span class="stat" id="btState"></span>
+            </div>
+            <div id="btResult"><div class="muted">Pick a symbol and parameters, then run a realistic backtest.</div></div>
+          </section>
+          <section class="card">
+            <h2>Walk-Forward Validation</h2>
+            <div class="bt-controls">
+              <button type="button" class="primary" id="wfRun">Run walk-forward</button>
+              <label class="stat" for="wfFolds">Folds
+                <select id="wfFolds" class="qty"><option>3</option><option selected>4</option><option>5</option></select>
+              </label>
+              <label class="stat" for="wfReg"><input type="checkbox" id="wfReg" checked/> Regime filter</label>
+              <span class="stat" id="wfState"></span>
+            </div>
+            <div id="wfResult"><div class="muted">Validates the focused symbol on unseen out-of-sample folds.</div></div>
+          </section>
+        </div>
+        <section class="card" style="margin-top:14px">
+          <h2>Backtest Chart — entries / exits</h2>
+          <div id="btchart" style="height:380px"></div>
+          <div id="btTrades"><div class="muted">Run a backtest to see marked trades and the fill list.</div></div>
+        </section>
+        <div class="grid-2" style="margin-top:14px">
+          <section class="card">
+            <h2>Saved Scenarios</h2>
+            <div class="bt-controls">
+              <button type="button" id="scLoad">Load 250 results</button>
+              <input id="scFilter" class="wide" placeholder="filter scenario" title="filter scenarios"/>
+              <span class="stat" id="scState"></span>
+            </div>
+            <div id="scTable"><div class="muted">Browse saved month-grid scenarios. Click a row to chart it.</div></div>
+          </section>
+          <section class="card">
+            <h2>Regime Filter Results</h2>
+            <div class="bt-controls">
+              <button type="button" class="primary" id="selRun">Run selection</button>
+              <span class="stat" id="selState"></span>
+            </div>
+            <div id="selResult"><div class="muted">Runs regime-filtered walk-forward per M7 symbol and marks tradability.</div></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="section" id="scanner">
+        <div class="section-head">
+          <div>
+            <h2>Scanner</h2>
+            <div class="section-note">S&P 500 + NASDAQ-100 universe scanner with 5-minute buy-edge scores.</div>
+          </div>
+        </div>
+        <section class="card">
+          <h2>Universe Buy-Edge Scores</h2>
+          <div class="bt-controls">
+            <select id="scanMode" title="universe" aria-label="universe mode">
+              <option value="sp500_nasdaq100">S&P500 + NASDAQ-100</option>
+              <option value="sp500">S&P 500</option>
+              <option value="nasdaq100">NASDAQ-100</option>
+              <option value="m7">M7</option>
+            </select>
+            <label class="stat" for="scanTop">Top <input id="scanTop" class="qty" value="25" title="top N"/></label>
+            <button type="button" class="primary" id="scanRun">Run scan</button>
+            <span class="stat" id="scanState"></span>
+          </div>
+          <div class="panel-body out" id="scanOut">Scores are estimated edge rankings, not profit probabilities.</div>
+        </section>
+      </section>
+
+      <section class="section" id="research">
+        <div class="section-head">
+          <div>
+            <h2>Research / News</h2>
+            <div class="section-note">RSS + Yahoo unified news, sentiment, and LLM committee views.</div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <section class="card"><h3>Unified News</h3>
+            <div class="bt-controls">
+              <input id="newsQuery" class="wide" placeholder="keyword"/>
+              <input id="newsSymbol" class="qty" placeholder="symbol"/>
+              <button type="button" id="newsSearch">Search</button>
+              <button type="button" id="newsLatest">Latest</button>
+            </div>
+            <div class="panel-body out" id="newsOut">Alpaca, RSS, and Yahoo sources are merged when available.</div>
+          </section>
+          <section class="card"><h3>Sentiment / Committee</h3>
+            <div class="bt-controls">
+              <button type="button" class="primary" id="committeeRun">Run committee on focused symbol</button>
+              <span class="stat" id="committeeState"></span>
+            </div>
+            <div class="panel-body" id="committeeOut"><div class="muted">Committee and catalyst reads use the focused symbol.</div></div>
+          </section>
+        </div>
+        <section class="card" style="margin-top:14px">
+          <h2>Why is it moving? (AI co-pilot)</h2>
+          <div id="copilot"><div class="muted">Click a symbol row, then “Why?” for an AI catalyst read.</div></div>
+        </section>
+      </section>
+
+      <section class="section" id="automation">
+        <div class="section-head">
+          <div>
+            <h2>Automation</h2>
+            <div class="section-note">Auto-trader config, scheduler, snapshots, and equity curve.</div>
+          </div>
+        </div>
+        <div class="grid-3">
+          <section class="card"><h3>Auto Trader</h3>
+            <div class="bt-controls"><button type="button" id="autoRun">Run one cycle</button></div>
+            <div class="panel-body out" id="autoOut">Disabled unless auto_trader.enabled is true; dry-run by default.</div>
+          </section>
+          <section class="card"><h3>Scheduler / Snapshots</h3>
+            <div class="panel-body out" id="automationOut">Load config summary to see automation gates.</div>
+          </section>
+          <section class="card"><h3>Equity Curve</h3>
+            <div class="bt-controls"><button type="button" id="equityCurveLoad">Load curve</button></div>
+            <div class="panel-body out" id="eqOut">Requires snapshots.enabled.</div>
+          </section>
+        </div>
+      </section>
+
+      <section class="section" id="reports">
+        <div class="section-head">
+          <div>
+            <h2>Reports</h2>
+            <div class="section-note">Export MD, Word, PDF and review reflection-memory summaries.</div>
+          </div>
+        </div>
+        <div class="grid-2">
+          <section class="card"><h3>Report Export</h3>
+            <div class="bt-controls">
+              <input id="reportSymbol" class="qty" value="MSFT" title="symbol" aria-label="symbol"/>
+              <select id="reportFormat" title="format" aria-label="format">
+                <option value="md">MD</option><option value="docx">Word</option><option value="pdf">PDF</option>
+              </select>
+              <button type="button" class="primary" id="reportRun">Generate</button>
+            </div>
+            <div class="panel-body out" id="reportOut">Exports the latest on-demand backtest result.</div>
+          </section>
+          <section class="card"><h3>Reflection Memory</h3>
+            <div class="bt-controls"><button type="button" id="reflectionLoad">Load reflections</button></div>
+            <div class="panel-body out" id="reflectionOut">Requires reflection.enabled.</div>
+          </section>
+        </div>
+      </section>
+
+      <section class="section" id="setupProfiles">
+        <div class="section-head">
+          <div>
+            <h2>Setup / Profiles</h2>
+            <div class="section-note">Parametric account profiles, feature flags, and presence-only key status.</div>
+          </div>
+          <div class="inline-links">
+            <a href="/setup">Setup page</a>
+            <a href="/perspective">Perspective tables</a>
+          </div>
+        </div>
+        <div class="grid-2">
+          <section class="card"><h3>Active Config Summary</h3>
+            <div class="bt-controls"><button type="button" id="configLoad">Load summary</button></div>
+            <div class="panel-body out" id="cfgOut">Secret-free runtime and feature summary.</div>
+          </section>
+          <section class="card"><h3>Profiles / Key Presence</h3>
+            <div class="panel-body out" id="profileOut">Use setup page for activation; API only returns booleans for key presence.</div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
 </div>
-
-<main>
-  <section class="card">
-    <h2>Watchlist & Signals</h2>
-    <table>
-      <thead><tr>
-        <th>Symbol</th><th>Last</th><th>z</th><th>RSI</th>
-        <th>Regime</th><th>Signal</th><th>BB</th><th>Trade (paper)</th>
-      </tr></thead>
-      <tbody id="grid"></tbody>
-    </table>
-  </section>
-
-  <section class="card">
-    <h2>Open Positions</h2>
-    <table>
-      <thead><tr><th>Symbol</th><th>Qty</th><th>Avg</th><th>Last</th><th>P&L</th></tr></thead>
-      <tbody id="positions"><tr><td colspan="5" class="muted">No open positions</td></tr></tbody>
-    </table>
-  </section>
-
-  <section class="card">
-    <h2>Why is it moving? (AI co-pilot)</h2>
-    <div id="copilot"><div class="muted">Click a symbol row, then “Why?” for an AI catalyst read.</div></div>
-  </section>
-
-  <section class="card full">
-    <h2>Chart — <span id="chartSym">MSFT</span> (TradingView)</h2>
-    <div id="tvchart" style="height:420px"></div>
-  </section>
-
-  <section class="card">
-    <h2>Backtest (realistic — no lookahead, costs in)</h2>
-    <div class="bt-controls">
-      <label class="stat" for="btStrat">Strategy
-        <select id="btStrat" class="qty" style="width:150px">
-          <option value="spike_fade">spike_fade</option>
-          <option value="ema_momentum">ema_momentum</option>
-          <option value="donchian">donchian</option>
-          <option value="rsi_reversion">rsi_reversion</option>
-          <option value="macd_cross">macd_cross</option>
-          <option value="vwap_reversion">vwap_reversion</option>
-          <option value="keltner_breakout">keltner_breakout</option>
-          <option value="atr_trend">atr_trend</option>
-        </select>
-      </label>
-      <label class="stat" for="btTf">TF
-        <select id="btTf" class="qty" style="width:64px">
-          <option>1m</option><option>3m</option><option selected>5m</option>
-          <option>15m</option><option>30m</option><option>45m</option><option>1h</option>
-        </select>
-      </label>
-      <span class="stat">TP%<input id="btTp" class="qty" type="number" value="2.0" step="0.1" title="take profit %"></span>
-      <span class="stat">SL%<input id="btSl" class="qty" type="number" value="1.5" step="0.1" title="stop loss %"></span>
-      <button type="button" class="primary" id="btRun">Run backtest</button>
-      <span class="stat" id="btState"></span>
-    </div>
-    <div id="btResult"><div class="muted">Pick a symbol + params, then “Run backtest”. Uses real bars; AI gives an honest read.</div></div>
-  </section>
-
-  <section class="card full">
-    <h2>Backtest chart — entries ▲ / exits ▼ (real bars, marked)</h2>
-    <div id="btchart" style="height:380px"></div>
-    <div id="btTrades"><div class="muted">Run a backtest to see trades marked on the chart and listed below.</div></div>
-  </section>
-
-  <section class="card full">
-    <h2>Saved scenarios — 250 (1-month M7 grid)</h2>
-    <div class="bt-controls">
-      <button type="button" id="scLoad">Load 250 results</button>
-      <input id="scFilter" class="qty" style="width:160px" placeholder="filter (e.g. GOOGL, ema)" title="filter scenarios"/>
-      <span class="stat" id="scState"></span>
-    </div>
-    <div id="scTable"><div class="muted">Click “Load 250 results” to browse the saved month grid. Click a row to backtest+chart it.</div></div>
-  </section>
-
-  <section class="card full">
-    <h2>Symbol selection — trade only OOS-robust names</h2>
-    <div class="bt-controls">
-      <button type="button" class="primary" id="selRun">Run selection (all M7)</button>
-      <span class="stat" id="selState"></span>
-    </div>
-    <div id="selResult"><div class="muted">Runs regime-filtered walk-forward per symbol; whitelists only the ones that beat buy-and-hold out-of-sample. Watchlist rows get a TRADABLE / EXCLUDED badge.</div></div>
-  </section>
-
-  <section class="card full">
-    <h2>Walk-forward — out-of-sample validation (honest overfit test)</h2>
-    <div class="bt-controls">
-      <button type="button" class="primary" id="wfRun">Run walk-forward</button>
-      <label class="stat" for="wfFolds">Folds
-        <select id="wfFolds" class="qty" style="width:54px"><option>3</option><option selected>4</option><option>5</option></select>
-      </label>
-      <label class="stat" for="wfReg">
-        <input type="checkbox" id="wfReg" checked/> Regime filter (improved)
-      </label>
-      <span class="stat" id="wfState"></span>
-    </div>
-    <div id="wfResult"><div class="muted">Pick a symbol (click a watchlist row), then “Run walk-forward”. Optimizes in-sample, validates on unseen out-of-sample data.</div></div>
-  </section>
-
-  <section class="card full">
-    <h2>Trade Tape</h2>
-    <div id="tape"><div class="muted">Waiting for signals… hit “Replay recent bars”.</div></div>
-  </section>
-</main>
 <script src="https://s3.tradingview.com/tv.js"></script>
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 
@@ -232,6 +448,18 @@ const money = n => n==null?"—":"$"+fmt(n,2);
 let UNIVERSE=[];
 
 // ---- safe DOM helpers (no innerHTML with dynamic data) ----
+function escapeHtml(s){
+  return String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function safeHttpUrl(u){
+  try{
+    const x=new URL(String(u||""), location.origin);
+    return /^https?:$/.test(x.protocol) ? x.href : "";
+  }catch(err){ return ""; }
+}
+function safeFilename(s){
+  return String(s||"report").replace(/[^A-Za-z0-9._-]+/g,"_").slice(0,64) || "report";
+}
 function el(tag, opts={}, children=[]){
   const n=document.createElement(tag);
   if(opts.cls) n.className=opts.cls;
@@ -262,7 +490,7 @@ function clock(){
 setInterval(clock,1000); clock();
 
 function buildGrid(){
-  const g=$("#grid"); g.innerHTML="";
+  const g=$("#grid"); g.textContent="";
   UNIVERSE.forEach(sym=>{
     const tr=document.createElement("tr"); tr.id="r_"+sym;
     const symCell=el("td",{cls:"sym"});
@@ -403,7 +631,7 @@ $("#refreshBtn").onclick=loadPositions;
 let _tv=null, _focused="MSFT";
 function renderChart(sym){
   if(typeof TradingView==="undefined"){return;}
-  $("#tvchart").innerHTML="";
+  $("#tvchart").textContent="";
   _tv=new TradingView.widget({
     container_id:"tvchart", symbol:sym, interval:"5", autosize:true,
     theme:"dark", style:"1", timezone:"Etc/UTC", hide_side_toolbar:true,
@@ -646,7 +874,8 @@ function renderWF(w){
 }
 
 function connect(){
-  const ws=new WebSocket(`ws://${location.host}/ws`);
+  const proto=location.protocol==="https:" ? "wss" : "ws";
+  const ws=new WebSocket(`${proto}://${location.host}/ws`);
   ws.onopen=()=>{$("#conn").classList.add("on");$("#connTxt").textContent="live";};
   ws.onclose=()=>{$("#conn").classList.remove("on");$("#connTxt").textContent="disconnected";setTimeout(connect,1500);};
   ws.onmessage=ev=>{
@@ -663,156 +892,190 @@ connect();
 loadPositions();
 focusSymbol("MSFT");  // initial chart
 </script>
-
-<!-- ============ Extras panel: features added on top of the base dashboard ========= -->
-<style>
-  #extras{padding:14px 18px;border-top:1px solid var(--line);background:var(--panel2)}
-  #extras h2{font-size:13px;margin:0 0 10px;color:var(--dim);letter-spacing:.4px;text-transform:uppercase}
-  #extras .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
-  #extras .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
-  #extras .card h3{margin:0 0 8px;font-size:13px;font-weight:650}
-  #extras input{background:var(--chip);border:1px solid var(--line);color:var(--text);
-    border-radius:6px;padding:5px 7px;font:inherit;width:64px}
-  #extras input.wide{width:140px}
-  #extras .out{margin-top:8px;font-size:12px;color:var(--dim);max-height:170px;overflow:auto}
-  #extras .out a{color:var(--blue);text-decoration:none}
-  #extras .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
-  #extras .k{color:var(--text);font-weight:650}
-  #extras a.link{color:var(--blue);text-decoration:none;font-size:12px}
-</style>
-<section id="extras">
-  <h2>Eklenen Araçlar · Added Tools</h2>
-  <div class="cards">
-    <div class="card"><h3>📰 Haberler (tüm kaynaklar)</h3>
-      <div class="row">
-        <input id="nwsQ" class="wide" placeholder="kelime"/>
-        <input id="nwsSym" placeholder="sembol"/>
-        <button type="button" onclick="exNewsSearch()">Ara</button>
-        <button type="button" onclick="exNewsLatest()">En son</button>
-      </div>
-      <div class="out" id="nwsOut">Alpaca + RSS + Yahoo birleşik.</div>
-    </div>
-
-    <div class="card"><h3>🧾 Emir Defteri (Trading-as-Git)</h3>
-      <div class="row"><button type="button" onclick="exOrders()">Yenile</button></div>
-      <div class="out" id="ordOut">stage → commit → push geçmişi.</div>
-    </div>
-
-    <div class="card"><h3>📊 İşlem Kalitesi (TCA)</h3>
-      <div class="row"><button type="button" onclick="exTca()">Yenile</button></div>
-      <div class="out" id="tcaOut">Gerçekleşen kayma (slippage) özeti.</div>
-    </div>
-
-    <div class="card"><h3>📈 Equity Curve</h3>
-      <div class="row"><button type="button" onclick="exEquity()">Yükle</button></div>
-      <div class="out" id="eqOut">snapshots.enabled gerektirir.</div>
-    </div>
-
-    <div class="card"><h3>🧮 Opsiyon Greekleri</h3>
-      <div class="row">
-        S<input id="gS" value="100" title="spot" aria-label="spot"/>K<input id="gK" value="100" title="strike" aria-label="strike"/>
-        gün<input id="gD" value="30" title="gün" aria-label="days"/>vol<input id="gV" value="0.25" title="vol" aria-label="vol"/>
-        <button type="button" onclick="exGreeks()">Hesapla</button>
-      </div>
-      <div class="out" id="grOut">Black-Scholes (yerel).</div>
-    </div>
-
-    <div class="card"><h3>🤖 Otonom Aksiyon</h3>
-      <div class="row"><button type="button" onclick="exAuto()">Bir döngü çalıştır</button></div>
-      <div class="out" id="autoOut">auto_trader.enabled gerektirir · varsayılan dry-run.</div>
-    </div>
-
-    <div class="card" style="grid-column:1/-1"><h3>🔭 Tarayıcı — S&amp;P 500 / NASDAQ-100 (5dk skor)</h3>
-      <div class="row">
-        <select id="scMode" title="evren" aria-label="universe mode">
-          <option value="sp500_nasdaq100">S&amp;P500+NASDAQ100</option>
-          <option value="sp500">S&amp;P 500</option>
-          <option value="nasdaq100">NASDAQ-100</option>
-          <option value="m7">M7</option>
-        </select>
-        <input id="scTop" value="25" title="top N" aria-label="top N" style="width:54px"/>
-        <button type="button" onclick="exScan()">Tara</button>
-        <span class="bb">Skor = tahmini edge (0-100), kâr garantisi <b>değil</b>.</span>
-      </div>
-      <div class="out" id="scOut" style="max-height:320px">Evreni 5dk barlarla tarar, alım adaylarını skora göre sıralar.</div>
-    </div>
-
-    <div class="card"><h3>📄 Rapor indir</h3>
-      <div class="row">
-        <input id="rpSym" value="MSFT" title="sembol" aria-label="symbol"/>
-        <select id="rpFmt" title="format" aria-label="format">
-          <option value="md">MD</option><option value="docx">Word</option>
-          <option value="pdf">PDF</option>
-        </select>
-        <button type="button" onclick="exReport()">Üret</button>
-      </div>
-      <div class="out" id="rpOut">Backtest sonucundan rapor (MD/Word/PDF).</div>
-    </div>
-
-    <div class="card"><h3>🔗 Bağlantılar</h3>
-      <div class="row">
-        <a class="link" href="/setup" target="_blank" rel="noopener">Setup profilleri →</a>
-        <a class="link" href="/static/perspective.html" target="_blank" rel="noopener">Perspective canlı tablolar →</a>
-      </div>
-      <div class="row"><button type="button" onclick="exConfig()">Aktif config'i göster</button></div>
-      <div class="out" id="cfgOut"></div>
-    </div>
-  </div>
-</section>
 <script>
-// Self-contained: own helpers, vanilla fetch — does not touch the base dashboard JS.
-const exG=id=>document.getElementById(id);
-async function exJSON(url,opts){try{const r=await fetch(url,opts);return await r.json();}
-  catch(e){return{error:String(e)};}}
-// XSS guards: escape every untrusted field before innerHTML; allow only http(s) hrefs.
-const exEsc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const exUrl=u=>{try{const x=new URL(u,location.origin);return /^https?:$/.test(x.protocol)?x.href:"#";}catch(e){return "#";}};
-function exNews(d,el){if(d.error)return el.textContent="hata: "+d.error;
-  const rows=(d.results||[]).slice(0,12).map(h=>`<div>• <a href="${exEsc(exUrl(h.url||'#'))}" target="_blank" rel="noopener">${exEsc(h.headline)}</a></div>`).join("");
-  el.innerHTML=`<div>kaynaklar: ${exEsc((d.sources||[]).join(", ")||"—")}</div>${rows||"sonuç yok"}`;}
-async function exNewsSearch(){const q=exG("nwsQ").value,s=exG("nwsSym").value;
-  exNews(await exJSON(`/api/news/search?q=${encodeURIComponent(q)}${s?`&symbol=${encodeURIComponent(s)}`:""}`),exG("nwsOut"));}
-async function exNewsLatest(){const s=exG("nwsSym").value;
-  exNews(await exJSON(`/api/news/latest${s?`?symbol=${encodeURIComponent(s)}`:""}`),exG("nwsOut"));}
-async function exOrders(){const d=await exJSON("/api/orders");
-  const rows=(d.orders||[]).slice(-15).reverse().map(o=>`<div>${exEsc((o.state||"").padEnd(9))} · ${exEsc(o.request.symbol||"")} ${exEsc(o.request.side||"")} ${exEsc(o.request.qty||"")} <span class="k">${exEsc(o.message||"")}</span></div>`).join("");
-  exG("ordOut").innerHTML=rows||"emir yok";}
-async function exTca(){const d=await exJSON("/api/exec/analytics");const s=d.summary||{};
-  exG("tcaOut").innerHTML=`n=<span class="k">${s.n||0}</span> · ort. kayma <span class="k">${s.avg_slippage_bps??"—"} bps</span> · fill <span class="k">${s.avg_fill_ratio??"—"}</span>`;}
-async function exEquity(){const d=await exJSON("/api/equity_curve");
-  if(!d.available)return exG("eqOut").textContent=d.detail||"kapalı";
-  const p=d.points||[];const last=p[p.length-1];
-  exG("eqOut").innerHTML=`${p.length} nokta · son equity <span class="k">${last?Math.round(last.equity):"—"}</span>`;}
-async function exGreeks(){const q=`spot=${exG("gS").value}&strike=${exG("gK").value}&days=${exG("gD").value}&vol=${exG("gV").value}`;
-  const d=await exJSON(`/api/options/greeks?${q}`);
-  exG("grOut").innerHTML=d.ok?`fiyat <span class="k">${d.price}</span> · Δ ${d.delta} · Γ ${d.gamma} · vega ${d.vega} · θ ${d.theta} <span style="color:var(--dim)">(${d.source})</span>`:"hata";}
-async function exAuto(){exG("autoOut").textContent="çalışıyor…";
-  const d=await exJSON("/api/agent/auto/cycle",{method:"POST"});
-  if(!d.ran)return exG("autoOut").textContent=d.detail||"çalışmadı";
-  const rows=(d.actions||[]).map(a=>`<div>${exEsc(a.status)} · ${exEsc(a.symbol)} ${exEsc(a.action)} ${exEsc(a.qty)} <span style="color:var(--dim)">${exEsc(a.detail||a.reason||"")}</span></div>`).join("");
-  exG("autoOut").innerHTML=`${d.dry_run?"DRY-RUN":"CANLI"} · ${exEsc(d.n_proposed)} öneri${rows}`;}
-async function exScan(){const mode=exG("scMode").value,top=exG("scTop").value||"25";
-  exG("scOut").textContent="taranıyor… (büyük evren birkaç sn sürebilir)";
-  const d=await exJSON(`/api/scan?mode=${encodeURIComponent(mode)}&top_n=${encodeURIComponent(top)}`);
-  if(d.error)return exG("scOut").textContent="hata: "+d.error;
-  const head=`<div class="bb">taranan: <b>${exEsc(d.scanned)}</b> · atlanan: ${exEsc(d.skipped)} · ${exEsc(d.note||"")}</div>`;
-  const rows=(d.candidates||[]).map((c,i)=>`<div>${i+1}. <b>${exEsc(c.symbol)}</b> · skor <b>${exEsc(c.score)}</b> · ${exEsc(c.regime)} · mom ${exEsc(c.momentum_pct)}% · RSI ${exEsc(c.rsi)} · son ${exEsc(c.last)}</div>`).join("");
-  exG("scOut").innerHTML=head+(rows||"aday yok");}
-async function exConfig(){const d=await exJSON("/api/config");
-  exG("cfgOut").innerHTML=`<pre style="white-space:pre-wrap;color:var(--dim)">${exEsc(JSON.stringify(d.config,null,1).slice(0,600))}…</pre>`;}
-async function exReport(){const sym=exG("rpSym").value||"MSFT",fmt=exG("rpFmt").value;
-  exG("rpOut").textContent="backtest çalışıyor…";
-  const bt=await exJSON("/api/backtest",{method:"POST",headers:{"Content-Type":"application/json"},
+async function getJSON(url,opts){
+  try{
+    const r=await fetch(url,opts);
+    return await r.json();
+  }catch(err){ return {error:String(err)}; }
+}
+
+function kvLine(k,v){
+  return el("div",{},[el("span",{cls:"k",text:k}), document.createTextNode(": "+String(v==null?"—":v))]);
+}
+
+function renderNews(d,host){
+  host.textContent="";
+  if(d.error){ host.appendChild(el("div",{text:"error: "+d.error})); return; }
+  host.appendChild(kvLine("sources",(d.sources||[]).join(", ")||"—"));
+  const rows=(d.results||[]).slice(0,12);
+  if(!rows.length){ host.appendChild(el("div",{text:"No results."})); return; }
+  rows.forEach(h=>{
+    const row=el("div");
+    row.appendChild(document.createTextNode("- "));
+    const href=safeHttpUrl(h.url);
+    if(href){
+      const a=el("a",{text:h.headline||"(untitled)"});
+      a.href=href; a.target="_blank"; a.rel="noopener noreferrer";
+      row.appendChild(a);
+    }else{
+      row.appendChild(el("span",{text:h.headline||"(untitled)"}));
+    }
+    if(h.symbol) row.appendChild(el("span",{color:"var(--dim)",text:" · "+h.symbol}));
+    host.appendChild(row);
+  });
+}
+
+async function newsSearch(){
+  const q=$("#newsQuery").value, s=$("#newsSymbol").value;
+  renderNews(await getJSON(`/api/news/search?q=${encodeURIComponent(q)}${s?`&symbol=${encodeURIComponent(s)}`:""}`), $("#newsOut"));
+}
+async function newsLatest(){
+  const s=$("#newsSymbol").value;
+  renderNews(await getJSON(`/api/news/latest${s?`?symbol=${encodeURIComponent(s)}`:""}`), $("#newsOut"));
+}
+async function loadOrders(){
+  const d=await getJSON("/api/orders");
+  const host=$("#ordOut"); host.textContent="";
+  const rows=(d.orders||[]).slice(-15).reverse();
+  if(!rows.length){ host.textContent="No ledger entries."; return; }
+  rows.forEach(o=>{
+    const req=o.request||{};
+    host.appendChild(el("div",{},[
+      el("span",{cls:"k",text:o.state||""}),
+      document.createTextNode(" · "+(req.symbol||"")+" "+(req.side||"")+" "+(req.qty||"")),
+      el("span",{color:"var(--dim)",text:o.message?(" · "+o.message):""}),
+    ]));
+  });
+}
+async function loadTca(){
+  const d=await getJSON("/api/exec/analytics"); const s=d.summary||{};
+  const host=$("#tcaOut"); host.textContent="";
+  host.appendChild(kvLine("orders",s.n||0));
+  host.appendChild(kvLine("avg slippage",`${s.avg_slippage_bps??"—"} bps`));
+  host.appendChild(kvLine("avg fill ratio",s.avg_fill_ratio??"—"));
+}
+async function loadEquityCurve(){
+  const d=await getJSON("/api/equity_curve");
+  const host=$("#eqOut"); host.textContent="";
+  if(!d.available){ host.textContent=d.detail||"snapshots disabled"; return; }
+  const p=d.points||[], last=p[p.length-1];
+  host.appendChild(kvLine("points",p.length));
+  host.appendChild(kvLine("last equity",last?Math.round(last.equity):"—"));
+}
+async function runAuto(){
+  const host=$("#autoOut"); host.textContent="running...";
+  const d=await getJSON("/api/agent/auto/cycle",{method:"POST"});
+  host.textContent="";
+  if(!d.ran){ host.textContent=d.detail||"auto trader did not run"; return; }
+  host.appendChild(kvLine("mode",d.dry_run?"DRY-RUN":"LIVE"));
+  host.appendChild(kvLine("proposals",d.n_proposed||0));
+  (d.actions||[]).forEach(a=>host.appendChild(el("div",{text:[a.status,a.symbol,a.action,a.qty,a.detail||a.reason||""].filter(Boolean).join(" · ")})));
+}
+async function runScan(){
+  const mode=$("#scanMode").value, top=$("#scanTop").value||"25";
+  $("#scanState").textContent="scanning...";
+  const d=await getJSON(`/api/scan?mode=${encodeURIComponent(mode)}&top_n=${encodeURIComponent(top)}`);
+  const host=$("#scanOut"); host.textContent="";
+  if(d.error){ host.textContent="error: "+d.error; $("#scanState").textContent=""; return; }
+  host.appendChild(kvLine("scanned",d.scanned));
+  host.appendChild(kvLine("skipped",d.skipped));
+  host.appendChild(el("div",{cls:"bb",text:d.note||"score = estimated edge, not a guarantee"}));
+  (d.candidates||[]).forEach((c,i)=>{
+    host.appendChild(el("div",{},[
+      el("span",{cls:"k",text:String(i+1)+". "+c.symbol}),
+      document.createTextNode(" · score "+c.score+" · "+c.regime+" · mom "+c.momentum_pct+"% · RSI "+c.rsi+" · last "+c.last),
+    ]));
+  });
+  $("#scanState").textContent="";
+}
+async function loadConfig(){
+  const d=await getJSON("/api/config");
+  const host=$("#cfgOut"); host.textContent="";
+  host.appendChild(kvLine("profile",d.runtime?.active_profile));
+  host.appendChild(kvLine("mode",d.runtime?.trading_mode));
+  host.appendChild(kvLine("universe",`${d.universe_mode} (${(d.universe||[]).length} live symbols)`));
+  host.appendChild(kvLine("scanner",`${d.scanner?.enabled ? "on":"off"} · ${d.scanner?.timeframe} · top ${d.scanner?.top_n}`));
+  host.appendChild(kvLine("risk",d.guards?.risk_enabled ? "on":"off"));
+  $("#automationOut").textContent="";
+  $("#automationOut").appendChild(kvLine("auto trader",`${d.automation?.auto_trader_enabled ? "on":"off"} · ${d.automation?.auto_trader_dry_run ? "dry-run":"execute"}`));
+  $("#automationOut").appendChild(kvLine("scheduler",d.automation?.scheduler_enabled ? "on":"off"));
+  $("#automationOut").appendChild(kvLine("snapshots",d.automation?.snapshots_enabled ? "on":"off"));
+}
+async function loadProfilesAndStatus(){
+  const host=$("#profileOut"); host.textContent="";
+  const profiles=await getJSON("/api/profiles");
+  const status=await getJSON("/api/setup/status");
+  host.appendChild(kvLine("active",profiles.active||"—"));
+  host.appendChild(kvLine("profiles",(profiles.profiles||[]).map(p=>p.name).join(", ")));
+  const keys=status.api_keys_set||{};
+  Object.keys(keys).sort().forEach(k=>host.appendChild(kvLine(k,keys[k] ? "present":"missing")));
+  applyRuntime(profiles.runtime||{});
+}
+function applyRuntime(rt){
+  const profile=rt.active_profile||"—";
+  $("#profileBadge").textContent=`PROFILE ${profile.toUpperCase()} · ${(rt.profile_mode||"test").toUpperCase()}`;
+  $("#mode").textContent=rt.paper_mode ? "PAPER MODE" : "LIVE MODE";
+  $("#mode").className=rt.paper_mode ? "badge paper" : "badge live";
+  $("#riskBadge").textContent=rt.risk_enabled ? "RISK ON" : "RISK OFF";
+}
+async function runCommittee(){
+  $("#committeeState").textContent="running...";
+  const d=await getJSON("/api/committee/"+encodeURIComponent(_focused));
+  const host=$("#committeeOut"); host.textContent="";
+  if(!d.available){ host.appendChild(el("div",{cls:"muted",text:d.summary||"committee disabled"})); $("#committeeState").textContent=""; return; }
+  host.appendChild(kvLine("symbol",d.symbol));
+  host.appendChild(kvLine("side",d.side));
+  host.appendChild(kvLine("confidence",d.confidence));
+  host.appendChild(el("div",{text:d.rationale||""}));
+  (d.analysts||[]).forEach(a=>host.appendChild(el("div",{color:"var(--dim)",text:`${a.role}: ${a.side} (${a.confidence})`})));
+  $("#committeeState").textContent="";
+}
+async function loadReflections(){
+  const d=await getJSON(`/api/reflections?symbol=${encodeURIComponent(_focused)}`);
+  const host=$("#reflectionOut"); host.textContent="";
+  if(!d.available){ host.textContent=d.detail||"reflection disabled"; return; }
+  const notes=d.notes||[];
+  if(!notes.length){ host.textContent="No reflection notes."; return; }
+  notes.forEach(n=>host.appendChild(el("div",{text:JSON.stringify(n)})));
+}
+async function generateReport(){
+  const sym=$("#reportSymbol").value||"MSFT", fmtOut=$("#reportFormat").value;
+  const host=$("#reportOut"); host.textContent="running backtest...";
+  const bt=await getJSON("/api/backtest",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({symbol:sym,timeframe:"5m",strategy:"spike_fade"})});
-  if(!bt.ok)return exG("rpOut").textContent="backtest hatası: "+(bt.detail||"?");
-  const body=JSON.stringify({kind:"backtest",format:fmt,data:bt});
+  if(!bt.ok){ host.textContent="backtest error: "+(bt.detail||"?"); return; }
+  const body=JSON.stringify({kind:"backtest",format:fmtOut,data:bt});
   const r=await fetch("/api/report",{method:"POST",headers:{"Content-Type":"application/json"},body});
-  if(fmt==="md"){const txt=await r.text();
-    exG("rpOut").innerHTML=`<pre style="white-space:pre-wrap">${exEsc(txt)}</pre>`;return;}
-  const blob=await r.blob();const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;a.download=`${sym}-backtest.${fmt}`;
-  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
-  exG("rpOut").textContent=`${fmt.toUpperCase()} indirildi (kurulu değilse JSON hata döner).`;}
+  if(fmtOut==="md"){
+    const txt=await r.text(); host.textContent="";
+    const pre=el("pre",{text:txt}); pre.style.whiteSpace="pre-wrap"; host.appendChild(pre); return;
+  }
+  const blob=await r.blob(); const url=URL.createObjectURL(blob);
+  const a=document.createElement("a"); a.href=url; a.download=`${safeFilename(sym)}-backtest.${fmtOut}`;
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  host.textContent=`${fmtOut.toUpperCase()} download requested.`;
+}
+function setupNav(){
+  const links=[...document.querySelectorAll("#sideNav a")];
+  links.forEach(a=>a.addEventListener("click",()=>{
+    links.forEach(x=>x.classList.remove("active")); a.classList.add("active");
+  }));
+}
+$("#ordersRefresh").addEventListener("click",loadOrders);
+$("#tcaRefresh").addEventListener("click",loadTca);
+$("#newsSearch").addEventListener("click",newsSearch);
+$("#newsLatest").addEventListener("click",newsLatest);
+$("#scanRun").addEventListener("click",runScan);
+$("#autoRun").addEventListener("click",runAuto);
+$("#equityCurveLoad").addEventListener("click",loadEquityCurve);
+$("#configLoad").addEventListener("click",loadConfig);
+$("#committeeRun").addEventListener("click",runCommittee);
+$("#reflectionLoad").addEventListener("click",loadReflections);
+$("#reportRun").addEventListener("click",generateReport);
+setupNav();
+loadProfilesAndStatus();
+loadConfig();
 </script>
 </body>
 </html>

@@ -134,6 +134,39 @@ def test_setup_status_shape_and_no_secrets_contract(monkeypatch):
     assert "OPENAI_SECRET_VALUE" not in response.text
 
 
+def test_config_endpoint_is_secret_free_summary(monkeypatch):
+    monkeypatch.setenv("ALPACA_SECRET_KEY", "CONFIG_ENDPOINT_SECRET")
+    monkeypatch.setenv("OPENAI_API_KEY", "CONFIG_OPENAI_SECRET")
+    from backend.web.app import app
+
+    client = TestClient(app)
+    response = client.get("/api/config")
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body) == {
+        "runtime",
+        "features",
+        "universe",
+        "universe_mode",
+        "scanner",
+        "automation",
+        "guards",
+    }
+    assert "profiles" not in body
+    assert "research" not in body
+    assert "CONFIG_ENDPOINT_SECRET" not in response.text
+    assert "CONFIG_OPENAI_SECRET" not in response.text
+
+
+def test_perspective_page_route_loads():
+    from backend.web.app import app
+
+    client = TestClient(app)
+    response = client.get("/perspective")
+    assert response.status_code == 200
+    assert "Perspective" in response.text
+
+
 def test_live_profile_does_not_enable_live_trading(monkeypatch):
     monkeypatch.delenv("LIVE_TRADING", raising=False)
     raw = _base_config()

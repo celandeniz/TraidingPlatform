@@ -1,45 +1,70 @@
-# M7 Spike-Fade — Phase 1 (Data + Signal Skeleton)
+# TraidingPlatform
 
-Live intraday signal engine for the Magnificent-7. Streams 1-minute bars from
-Alpaca (paper), runs pluggable strategies, and logs every signal to the terminal
-and a JSONL tape. **Phase 1 places no orders** — it detects and records signals.
+Python/FastAPI trading research and execution control surface for the M7 strategy stack. The default configuration is safe: test profile, paper-style routing, no autonomous execution, and no live trading unless `LIVE_TRADING=true` is set intentionally.
 
-See the design spec: `docs/superpowers/specs/2026-05-30-m7-spikefade-phase1-design.md`.
+## What It Includes
 
-## Strategies (pluggable)
-
-- **spike_fade** (signal): fade a sudden move once it reverses.
-- **bollinger** (confirmation): multi-timeframe Bollinger Band confluence
-  (`1m,3m,5m,15m,45m,1h`) grading each fired signal.
-
-Add a strategy = implement a class, register a key in
-`backend/strategy/registry.py`, list it under `strategies:` in
-`backend/config.yaml`. No runner changes.
+- Live / Signals dashboard with WebSocket price, signal, order, and position updates.
+- OMS order ledger with stage, commit, push, fills, and transaction-cost analytics.
+- Backtest runner, saved scenario browser, walk-forward validation, and regime-filter symbol selection.
+- S&P 500 + NASDAQ-100 scanner with 5-minute buy-edge scores. Score is estimated edge, not a guarantee.
+- Unified news from Alpaca, RSS, and Yahoo, plus catalyst, sentiment, and LLM committee views.
+- Optional LLM providers: Ollama, Claude, Gemini, DeepSeek, and OpenAI-compatible endpoints.
+- Optional automation: scheduler, snapshots, reflection memory, auto-trader cycle, and Perspective live tables.
+- Report export to Markdown, Word, and PDF when optional dependencies are installed.
+- Setup page for test/live account profiles, feature flags, optional dependencies, and key-presence checks.
 
 ## Setup
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-cp .env.example .env        # then paste your Alpaca PAPER keys
+cp .env.example .env
 ```
+
+Fill `.env` with paper/test credentials first. Keep `.env` uncommitted.
 
 ## Run
 
 ```bash
-# verify connectivity (account + recent bars, no streaming)
+# verify connectivity
 .venv/bin/python -m backend.smoke_test
 
-# run the live signal engine (US session; Ctrl-C to stop)
+# run the CLI signal engine
 .venv/bin/python -m backend.runner
 
-# unit tests
+# run the FastAPI dashboard
+.venv/bin/uvicorn backend.web.app:app --reload
+
+# tests
 .venv/bin/python -m pytest backend/tests/ -q
 ```
 
-Signals stream to the terminal and append to `logs/tape_YYYY-MM-DD.jsonl`.
+Dashboard routes:
+
+- `/` main dashboard
+- `/setup` account profiles, feature flags, dependency/key presence
+- `/perspective` optional Perspective live tables
 
 ## Configuration
 
-All thresholds live in `backend/config.yaml`; credentials in `.env` (never
-committed). Engine computes in UTC; terminal shows ET + Istanbul time.
+Behavior lives in `backend/config.yaml`; credentials live in `.env`. `PROFILE=test` is the default profile. `PROFILE=live` applies live-profile risk/guard defaults, but real-money adapters still refuse to initialize unless `LIVE_TRADING=true`.
+
+Important safe defaults:
+
+- `LIVE_TRADING=false`
+- `TRADING_MODE=paper`
+- `auto_trader.enabled=false`
+- `auto_trader.dry_run=true`
+- `scanner.enabled=false` for the background loop; `/api/scan` remains on-demand
+- `scheduler.enabled=false`
+- `snapshots.enabled=false`
+- `perspective.enabled=false`
+- `reflection.enabled=false`
+- `execution.realistic_fills=false`
+
+Endpoints that report environment status return booleans for key presence only, never raw secret values.
+
+## Development Notes
+
+Add strategies by registering them in `backend/strategy/registry.py` and listing them under `strategies:` in `backend/config.yaml`. The static UI is intentionally plain HTML/CSS/JS served by FastAPI: no frontend framework, bundler, or build step.

@@ -238,6 +238,11 @@ async def setup() -> FileResponse:
     return FileResponse(STATIC_DIR / "setup.html")
 
 
+@app.get("/perspective")
+async def perspective_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "perspective.html")
+
+
 @app.get("/favicon.ico")
 async def favicon() -> Response:
     return Response(status_code=204)
@@ -317,12 +322,65 @@ def _llm_provider_status() -> dict:
     return statuses
 
 
+def _public_runtime() -> dict:
+    profile = _config.get("profile") or {}
+    trading_mode = str(getattr(_settings, "trading_mode", "") or profile.get("mode") or "paper")
+    live_flag = bool(getattr(_settings, "live_trading", False))
+    return {
+        "active_profile": _config.get("active_profile"),
+        "profile_mode": profile.get("mode", "test"),
+        "profile_broker": profile.get("broker", ""),
+        "trading_mode": trading_mode,
+        "live_trading_enabled": live_flag,
+        "paper_mode": not live_flag or trading_mode.lower() != "live",
+        "risk_enabled": bool(_config.get("risk", {}).get("enabled", False)),
+    }
+
+
+def _public_config_summary() -> dict:
+    """Secret-free config summary for dashboards.
+
+    This deliberately does not return the raw merged config: config can grow new
+    fields over time, and a future field may contain credentials or account IDs.
+    """
+    scanner = _config.get("scanner", {})
+    auto_trader = _config.get("auto_trader", {})
+    scheduler = _config.get("scheduler", {})
+    snapshots = _config.get("snapshots", {})
+    return {
+        "runtime": _public_runtime(),
+        "features": feature_toggles(_config),
+        "universe": list(_config.get("universe", [])),
+        "universe_mode": _config.get("universe_mode", "m7"),
+        "scanner": {
+            "enabled": bool(scanner.get("enabled", False)),
+            "timeframe": scanner.get("timeframe", "5m"),
+            "interval_seconds": scanner.get("interval_seconds", 300),
+            "top_n": scanner.get("top_n", 25),
+            "min_score": scanner.get("min_score", 0),
+            "feed_auto_trader": bool(scanner.get("feed_auto_trader", False)),
+        },
+        "automation": {
+            "auto_trader_enabled": bool(auto_trader.get("enabled", False)),
+            "auto_trader_dry_run": bool(auto_trader.get("dry_run", True)),
+            "scheduler_enabled": bool(scheduler.get("enabled", False)),
+            "webhooks_enabled": bool(scheduler.get("webhooks_enabled", False)),
+            "snapshots_enabled": bool(snapshots.get("enabled", False)),
+        },
+        "guards": {
+            "enabled": bool(_config.get("guards", {}).get("enabled", False)),
+            "risk_enabled": bool(_config.get("risk", {}).get("enabled", False)),
+        },
+    }
+
+
 @app.get("/api/profiles")
 async def profiles_api() -> dict:
     return {
         "profiles": profile_summaries(get_raw_config()),
         "active": _config.get("active_profile"),
         "active_features": feature_toggles(_config),
+        "runtime": _public_runtime(),
     }
 
 
@@ -339,6 +397,7 @@ async def profiles_activate(body: ProfileActivateBody) -> dict:
         "ok": True,
         "active": config.get("active_profile"),
         "active_features": feature_toggles(config),
+        "runtime": _public_runtime(),
     }
 
 
@@ -888,8 +947,8 @@ async def orders_push(order_id: str) -> dict:
 
 @app.get("/api/config")
 async def get_config_view() -> dict:
-    """The active behaviour config (config.yaml) for the config-management panel."""
-    return {"config": _config}
+    """Secret-free behaviour summary for dashboard config panels."""
+    return _public_config_summary()
 
 
 @app.get("/api/inbox")

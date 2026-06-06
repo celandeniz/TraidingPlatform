@@ -12,27 +12,38 @@
        Subresource Integrity (integrity="sha384-..."). Also confirm the package
        scope/version matches your installed perspective-python. -->
   <style>
-    html, body { margin: 0; height: 100%; background: #1c1f26; color: #ddd;
-                 font-family: system-ui, sans-serif; }
-    header { padding: 8px 14px; font-size: 14px; border-bottom: 1px solid #333; }
-    header a { color: #6cf; }
-    #consent { padding: 16px; max-width: 760px; }
-    #consent button { background: #2d6cdf; color: #fff; border: 0; padding: 8px 14px;
-                      border-radius: 6px; cursor: pointer; font-size: 14px; }
-    .warn { color: #f3c969; }
-    #grid { display: none; grid-template-columns: 1fr 1fr; grid-auto-rows: 46vh; gap: 6px;
-            padding: 6px; box-sizing: border-box; }
-    perspective-viewer { background: #20242c; border: 1px solid #333; border-radius: 6px; }
-    #err { padding: 14px; color: #f88; display: none; }
+    :root { --bg:#090d12; --panel:#111820; --panel2:#0d131a; --line:#243141;
+            --text:#e1e8ef; --dim:#8996a5; --blue:#63a8ff; --amber:#f2b84b; --red:#ff6478; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+                 font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    header { display:flex; align-items:center; justify-content:space-between; gap:16px;
+             padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--panel2); }
+    h1 { font-size: 17px; margin: 0; }
+    .sub { color: var(--dim); font-size: 12px; margin-top:2px; }
+    header a { color: var(--blue); text-decoration:none; }
+    #consent { padding: 18px; max-width: 820px; }
+    #consent button { background: rgba(99,168,255,.16); color: #cfe4ff; border: 1px solid rgba(99,168,255,.4);
+                      padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+    .warn { color: var(--amber); }
+    .notice { color: var(--dim); border:1px solid var(--line); background:var(--panel);
+              border-radius:8px; padding:14px; margin-bottom:12px; }
+    #grid { display: none; grid-template-columns: 1fr 1fr; grid-auto-rows: 46vh; gap: 8px;
+            padding: 8px; box-sizing: border-box; }
+    perspective-viewer { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+    #err { padding: 14px; color: var(--red); display: none; }
   </style>
 </head>
 <body>
   <header>
-    Perspective live tables — signals · orders · positions · execution quality · equity.
-    <a href="/">← back to dashboard</a>
+    <div>
+      <h1>Perspective Live Tables</h1>
+      <div class="sub">Signals, orders, positions, execution quality, and equity curve.</div>
+    </div>
+    <a href="/">Dashboard</a>
   </header>
 
   <div id="consent">
+    <div class="notice">Score = estimated edge, not a guarantee. Paper mode by default.</div>
     <p>This view loads the Perspective WebAssembly client from a public CDN
        (<code>jsdelivr</code>), <span class="warn">unpinned and without Subresource
        Integrity</span>. Third-party code will execute in your browser only if you
