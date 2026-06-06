@@ -42,12 +42,14 @@ class PositionManager:
         market_is_closing: Callable[[datetime, int], bool],
         exit_cfg: ExitConfig,
         eod_flat_minutes: int = 10,
+        reflection=None,        # ReflectionMemory | None — learns from closes (opt-in)
     ):
         self.executor = executor
         self.clock = clock
         self.market_is_closing = market_is_closing
         self.exit_cfg = exit_cfg
         self.eod_flat_minutes = eod_flat_minutes
+        self.reflection = reflection
         self.positions: dict[str, Position] = {}
 
     # ---- opening ----------------------------------------------------------
@@ -76,6 +78,8 @@ class PositionManager:
                 stop_loss_pct=self.exit_cfg.stop_loss_pct,
                 trailing_stop_pct=self.exit_cfg.trailing_stop_pct,
                 time_stop_minutes=self.exit_cfg.time_stop_minutes,
+                decision_id=decision.symbol,
+                tags={"rationale": decision.rationale},  # kept for reflection on close
             )
         return result
 
@@ -107,8 +111,25 @@ class PositionManager:
         )
         result = self.executor.submit(req)
         if result.ok:
+            self._reflect_on_close(pos, mark, decision.reason or "exit")
             self.positions.pop(symbol, None)
         return result
+
+    def _reflect_on_close(self, pos: Position, mark: float, reason: str) -> None:
+        """Best-effort: hand the closed trade to reflection memory (never raises)."""
+        if self.reflection is None:
+            return
+        try:
+            from ..research.reflection import TradeClosure
+
+            self.reflection.record_closure(TradeClosure(
+                symbol=pos.symbol, side=pos.side, entry=pos.avg_entry, exit=mark,
+                ret_pct=unrealized_pl_pct(pos, mark), opened_at=str(pos.opened_at),
+                closed_at=str(self.clock()), exit_reason=reason,
+                rationale=(pos.tags or {}).get("rationale", ""),
+            ))
+        except Exception:  # noqa: BLE001 - reflection is non-critical
+            pass
 
     # ---- views ------------------------------------------------------------
     def local_view(self, marks: dict[str, float]) -> list[PositionView]:

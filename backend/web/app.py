@@ -787,6 +787,19 @@ async def auto_trader_cycle() -> dict:
     return out
 
 
+@app.get("/api/reflections")
+async def reflections(symbol: Optional[str] = None, limit: int = 20) -> dict:
+    """Lessons learned from closed trades (reflection.enabled)."""
+    rcfg = _config.get("reflection", {})
+    if not rcfg.get("enabled", False):
+        return {"available": False, "detail": "reflection disabled (reflection.enabled=false)",
+                "notes": []}
+    from ..research.reflection import ReflectionMemory
+
+    mem = ReflectionMemory(max_notes=rcfg.get("max_notes", 200))
+    return {"available": True, "notes": mem.recent(symbol=symbol, limit=limit)}
+
+
 @app.get("/api/exec/analytics")
 async def exec_analytics() -> dict:
     """Transaction-cost analysis: per-order slippage vs arrival + aggregate summary."""

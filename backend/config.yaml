@@ -115,6 +115,14 @@ execution:
     max_participation: 1.0        # cap fill at this fraction of bar volume (1 = no cap)
     commission_bps: 1.0           # per side
 
+# Reflection-memory: learn from closed trades. OFF by default. When on, each close
+# stores a short lesson (LLM if use_llm, else heuristic) to logs/reflections.jsonl,
+# surfaced into future decision/committee context.
+reflection:
+  enabled: false
+  use_llm: true
+  max_notes: 200
+
 # Autonomous LLM action loop (Gemini/Claude/Ollama drives the MCP toolset).
 # OFF + dry_run by default. Even when live, every action passes guards + risk +
 # kill-switch downstream. Trigger one cycle via POST /api/agent/auto/cycle.

@@ -25,6 +25,7 @@ def decide(
     committee: Optional[CommitteeVerdict] = None,
     committee_mode: str = "off",  # off | confirm | veto | decide
     committee_veto_confidence: float = 0.6,
+    reflections: Optional[list] = None,  # past-trade lessons (audit/context only)
 ) -> Decision:
     """Map (signal side, tier, regime) + gate -> action, applying the gate rule.
 
@@ -37,6 +38,8 @@ def decide(
     callers pass it True since crypto shorts are native.
     """
     confirmations: dict = {}
+    if reflections:
+        confirmations["reflections"] = reflections  # surfaced for audit + LLM context
     if bollinger is not None:
         confirmations["bollinger"] = bollinger
     if fundamental is not None:
