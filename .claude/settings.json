@@ -8,7 +8,8 @@
       "Bash(.venv/bin/python -c \"import backend.data.ccxt_provider, backend.execution.ccxt_adapter, backend.brokers; print\\('ccxt modules import ok'\\)\")",
       "Bash(.venv/bin/python -)",
       "Bash(awk '{print $9}')",
-      "Bash(python -m pytest backend/tests/test_mock_broker.py -q)"
+      "Bash(python -m pytest backend/tests/test_mock_broker.py -q)",
+      "Bash(.venv/bin/python -m pytest backend/tests/test_openai_compat_client.py -q)"
     ]
   }
 }

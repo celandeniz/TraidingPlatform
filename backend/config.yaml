@@ -243,7 +243,18 @@ research:
       contrarian: 1.2
       news_technical: 1.0
   llm:
-    provider: ollama                   # ollama (local, default) | claude | gemini
+    provider: ollama                   # ollama (local) | claude | gemini | deepseek | openai
+    # OpenAI-compatible cloud (DeepSeek default; point base_url at DashScope/
+    # SiliconFlow for Qwen/others). Needs DEEPSEEK_API_KEY/OPENAI_API_KEY in .env.
+    openai:
+      base_url: https://api.deepseek.com
+      default_use_case: general
+      deep_use_case: reasoning
+      models:
+        general: deepseek-chat
+        fast: deepseek-chat
+        reasoning: deepseek-reasoner
+        lightweight: deepseek-chat
     # Gemini settings (used when provider=gemini, or as fallback). Needs
     # GOOGLE_API_KEY/GEMINI_API_KEY in .env + the google-genai package.
     gemini:

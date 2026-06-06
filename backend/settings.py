@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     google_api_key: str = ""        # Gemini (research.llm.provider=gemini)
     gemini_api_key: str = ""        # alias accepted for the same key
+    deepseek_api_key: str = ""      # OpenAI-compatible (research.llm.provider=deepseek)
+    openai_api_key: str = ""        # OpenAI-compatible (provider=openai)
+    openai_base_url: str = ""       # override compat endpoint (DashScope/SiliconFlow/…)
     live_trading: bool = False
     ccxt_api_key: str = ""
     ccxt_api_secret: str = ""

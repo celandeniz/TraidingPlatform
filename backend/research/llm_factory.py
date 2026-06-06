@@ -25,8 +25,11 @@ def build_llm_client(settings, cfg: dict):
     # research layer still works if the primary is unusable.
     builders = {"ollama": lambda: _try_ollama(llm),
                 "claude": lambda: _try_claude(settings, llm),
-                "gemini": lambda: _try_gemini(settings, llm)}
-    order = [provider] + [p for p in ("ollama", "claude", "gemini") if p != provider]
+                "gemini": lambda: _try_gemini(settings, llm),
+                "deepseek": lambda: _try_openai_compat(settings, llm),
+                "openai": lambda: _try_openai_compat(settings, llm)}
+    order = [provider] + [p for p in ("ollama", "claude", "gemini", "deepseek")
+                          if p != provider]
     for name in order:
         build = builders.get(name)
         if build is None:
@@ -91,6 +94,27 @@ def _try_gemini(settings, llm: dict):
         role_use_cases=g.get("roles"),
         default_use_case=g.get("default_use_case", "general"),
         deep_use_case=g.get("deep_use_case", "reasoning"),
+        max_calls_per_min=llm.get("max_calls_per_min", 30),
+        daily_cost_cap_usd=llm.get("daily_cost_cap_usd", 5.0),
+    )
+
+
+def _try_openai_compat(settings, llm: dict):
+    o = llm.get("openai", {})
+    key = (getattr(settings, "deepseek_api_key", "")
+           or getattr(settings, "openai_api_key", ""))
+    if not key:
+        return None
+    from .openai_compat_client import OpenAICompatClient
+
+    return OpenAICompatClient(
+        key,
+        base_url=(o.get("base_url") or getattr(settings, "openai_base_url", "")
+                  or "https://api.deepseek.com"),
+        use_case_models=o.get("models"),
+        role_use_cases=o.get("roles"),
+        default_use_case=o.get("default_use_case", "general"),
+        deep_use_case=o.get("deep_use_case", "reasoning"),
         max_calls_per_min=llm.get("max_calls_per_min", 30),
         daily_cost_cap_usd=llm.get("daily_cost_cap_usd", 5.0),
     )
