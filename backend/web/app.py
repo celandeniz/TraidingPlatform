@@ -716,6 +716,19 @@ async def inbox_push(body: InboxBody) -> dict:
     return {"ok": True, "message": msg}
 
 
+@app.get("/api/options/greeks")
+async def options_greeks(spot: float, strike: float, days: float, vol: float,
+                         rate: float = 0.0, call: bool = True) -> dict:
+    """Black-Scholes price + Greeks (local, offline). vol as a decimal (0.25 = 25%),
+    days to expiry. gs-quant is used only if installed + Marquee-authed; otherwise
+    this is local BS and labels source accordingly."""
+    from ..research.gs_analytics import OptionsAnalytics
+
+    g = OptionsAnalytics().greeks(spot=spot, strike=strike, t_years=days / 365.0,
+                                  vol=vol, rate=rate, is_call=call)
+    return {"ok": True, **g.as_dict()}
+
+
 @app.get("/api/perspective/status")
 async def perspective_status() -> dict:
     """Whether the Perspective streaming feed is live (enabled + package present)."""
