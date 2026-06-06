@@ -99,11 +99,21 @@ if _rss_cfg.get("enabled", False) and _rss_cfg.get("feeds"):
     _rss = RssNewsAggregator(_rss_cfg["feeds"],
                              retention_days=_rss_cfg.get("retention_days", 14))
 
+# Unified news across every available source: Alpaca (if keys) + RSS (if enabled) +
+# Yahoo Finance (free, lazy). Built best-effort so /api/news/* works out of the box.
+from ..marketdata.yahoo_provider import YahooProvider  # noqa: E402
+from ..research.news_aggregator import UnifiedNews  # noqa: E402
+
+_news_unified = UnifiedNews(alpaca=_news, rss=_rss, yahoo=YahooProvider())
+
 # Phase D: order ledger (Trading-as-Git) over the same executor, and a simple
 # in-memory Inbox push channel (workspace -> user).
+from ..execution.analytics import ExecutionAnalytics  # noqa: E402
 from ..oms.ledger import OrderManager  # noqa: E402
 
-_oms = OrderManager(_executor)
+# Transaction-cost analytics records slippage vs arrival for every pushed order.
+_exec_analytics = ExecutionAnalytics()
+_oms = OrderManager(_executor, analytics=_exec_analytics)
 _inbox: list[dict] = []
 
 # Perspective (FINOS) streaming tables — built only when enabled and the optional
@@ -647,16 +657,30 @@ async def inbound_webhook(name: str, payload: Optional[dict] = None) -> dict:
     return {"ok": True, "event": event}
 
 
+def _headlines_json(items) -> list:
+    return [{"symbol": h.symbol, "headline": h.headline, "summary": h.summary,
+             "url": h.url, "created_at": h.created_at.isoformat()} for h in items]
+
+
 @app.get("/api/news/search")
-async def news_search(q: str, limit: int = 25) -> dict:
-    """Keyword search over the RSS news archive (news_rss.enabled)."""
-    if _rss is None:
-        return {"available": False, "detail": "RSS news disabled (news_rss.enabled=false)",
-                "results": []}
-    hits = _rss.search(q, limit=limit)
-    return {"available": True, "query": q,
-            "results": [{"headline": h.headline, "summary": h.summary,
-                         "url": h.url, "created_at": h.created_at.isoformat()} for h in hits]}
+async def news_search(q: str, symbol: Optional[str] = None, limit: int = 25) -> dict:
+    """Keyword search across ALL news sources. Pass `symbol` to include the
+    per-symbol sources (Alpaca/Yahoo); RSS is always searched market-wide."""
+    import asyncio as _a
+
+    hits = await _a.to_thread(_news_unified.search, q, symbol, limit)
+    return {"available": True, "sources": _news_unified.sources(), "query": q,
+            "results": _headlines_json(hits)}
+
+
+@app.get("/api/news/latest")
+async def news_latest(symbol: Optional[str] = None, limit: int = 30) -> dict:
+    """Newest headlines across all sources, de-duped + ranked. Optional symbol."""
+    import asyncio as _a
+
+    items = await _a.to_thread(_news_unified.latest, symbol, limit)
+    return {"available": True, "sources": _news_unified.sources(),
+            "symbol": symbol, "results": _headlines_json(items)}
 
 
 class StageBody(BaseModel):
@@ -737,6 +761,13 @@ async def inbox_push(body: InboxBody) -> dict:
     _inbox.append(msg)
     await hub.broadcast({"type": "inbox", **msg})
     return {"ok": True, "message": msg}
+
+
+@app.get("/api/exec/analytics")
+async def exec_analytics() -> dict:
+    """Transaction-cost analysis: per-order slippage vs arrival + aggregate summary."""
+    return {"summary": _exec_analytics.summary(),
+            "recent": _exec_analytics._read()[-50:]}
 
 
 @app.get("/api/options/greeks")

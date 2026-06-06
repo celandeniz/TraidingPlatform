@@ -16,6 +16,10 @@ def build_market_data_provider(settings, cfg: dict) -> Optional[MarketDataProvid
     if not md.get("enabled"):
         return None
     backend = md.get("backend", "openbb")
+    if backend == "yahoo":
+        from .yahoo_provider import YahooProvider
+
+        return YahooProvider()
     if backend == "openbb":
         from .openbb_provider import OpenBBProvider
 

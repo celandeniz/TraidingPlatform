@@ -20,3 +20,5 @@ requests>=2.31
 # perspective-python>=3.1  # perspective.enabled: streaming dashboard tables (FINOS)
 # gs-quant>=1.0        # research.gs_quant: offline options/Greeks analytics (Goldman)
 # pyflyby>=1.9         # dev-only: auto-import in IPython/Jupyter research notebooks (D.E. Shaw)
+# yfinance>=0.2.40     # marketdata.backend=yahoo + Yahoo Finance news (free, no key)
+# google-genai>=0.3    # research.llm.provider=gemini (Google Gemini)

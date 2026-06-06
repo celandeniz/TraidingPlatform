@@ -184,7 +184,7 @@ perspective:
 # OFF by default: enable deliberately (adds the openbb dependency + provider keys).
 marketdata:
   enabled: false
-  backend: openbb
+  backend: openbb                 # openbb | yahoo (yahoo = free yfinance, no key)
   providers: {}                   # per-asset default, e.g. {equity: fmp, crypto: fmp}
   api_keys: {}                    # inline keys; or set *_api_key in .env
 
