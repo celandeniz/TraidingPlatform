@@ -722,6 +722,18 @@ focusSymbol("MSFT");  // initial chart
       <div class="out" id="autoOut">auto_trader.enabled gerektirir · varsayılan dry-run.</div>
     </div>
 
+    <div class="card"><h3>📄 Rapor indir</h3>
+      <div class="row">
+        <input id="rpSym" value="MSFT" title="sembol" aria-label="symbol"/>
+        <select id="rpFmt" title="format" aria-label="format">
+          <option value="md">MD</option><option value="docx">Word</option>
+          <option value="pdf">PDF</option>
+        </select>
+        <button type="button" onclick="exReport()">Üret</button>
+      </div>
+      <div class="out" id="rpOut">Backtest sonucundan rapor (MD/Word/PDF).</div>
+    </div>
+
     <div class="card"><h3>🔗 Bağlantılar</h3>
       <div class="row">
         <a class="link" href="/static/perspective.html" target="_blank" rel="noopener">Perspective canlı tablolar →</a>
@@ -765,6 +777,19 @@ async function exAuto(){exG("autoOut").textContent="çalışıyor…";
   exG("autoOut").innerHTML=`${d.dry_run?"DRY-RUN":"CANLI"} · ${exEsc(d.n_proposed)} öneri${rows}`;}
 async function exConfig(){const d=await exJSON("/api/config");
   exG("cfgOut").innerHTML=`<pre style="white-space:pre-wrap;color:var(--dim)">${exEsc(JSON.stringify(d.config,null,1).slice(0,600))}…</pre>`;}
+async function exReport(){const sym=exG("rpSym").value||"MSFT",fmt=exG("rpFmt").value;
+  exG("rpOut").textContent="backtest çalışıyor…";
+  const bt=await exJSON("/api/backtest",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({symbol:sym,timeframe:"5m",strategy:"spike_fade"})});
+  if(!bt.ok)return exG("rpOut").textContent="backtest hatası: "+(bt.detail||"?");
+  const body=JSON.stringify({kind:"backtest",format:fmt,data:bt});
+  const r=await fetch("/api/report",{method:"POST",headers:{"Content-Type":"application/json"},body});
+  if(fmt==="md"){const txt=await r.text();
+    exG("rpOut").innerHTML=`<pre style="white-space:pre-wrap">${exEsc(txt)}</pre>`;return;}
+  const blob=await r.blob();const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=url;a.download=`${sym}-backtest.${fmt}`;
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  exG("rpOut").textContent=`${fmt.toUpperCase()} indirildi (kurulu değilse JSON hata döner).`;}
 </script>
 </body>
 </html>

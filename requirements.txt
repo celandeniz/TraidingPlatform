@@ -22,3 +22,6 @@ requests>=2.31
 # pyflyby>=1.9         # dev-only: auto-import in IPython/Jupyter research notebooks (D.E. Shaw)
 # yfinance>=0.2.40     # marketdata.backend=yahoo + Yahoo Finance news (free, no key)
 # google-genai>=0.3    # research.llm.provider=gemini (Google Gemini)
+# python-docx>=1.1     # report export to Word (.docx)
+# reportlab>=4.0       # report export to PDF
+# (DeepSeek/Qwen provider uses requests — no extra dependency)

@@ -787,6 +787,31 @@ async def auto_trader_cycle() -> dict:
     return out
 
 
+class ReportBody(BaseModel):
+    kind: str               # backtest | walkforward | committee
+    format: str = "md"      # md | docx | pdf
+    data: dict              # the result payload (as returned by /api/backtest etc.)
+
+
+@app.post("/api/report")
+async def report(body: ReportBody):
+    """Render a result to Markdown (text) or Word/PDF (file download)."""
+    from fastapi.responses import PlainTextResponse
+
+    from ..report.exporter import export_report
+
+    try:
+        content, media, is_file = export_report(body.kind, body.data, body.format)
+    except ValueError as exc:
+        return {"ok": False, "detail": str(exc)}
+    except ImportError:
+        return {"ok": False, "detail": f"{body.format} needs python-docx/reportlab installed"}
+    if is_file:
+        return FileResponse(str(content), media_type=media,
+                            filename=Path(content).name)
+    return PlainTextResponse(content, media_type=media)
+
+
 @app.get("/api/reflections")
 async def reflections(symbol: Optional[str] = None, limit: int = 20) -> dict:
     """Lessons learned from closed trades (reflection.enabled)."""
