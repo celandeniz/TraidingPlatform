@@ -99,6 +99,13 @@ if _rss_cfg.get("enabled", False) and _rss_cfg.get("feeds"):
     _rss = RssNewsAggregator(_rss_cfg["feeds"],
                              retention_days=_rss_cfg.get("retention_days", 14))
 
+# Phase D: order ledger (Trading-as-Git) over the same executor, and a simple
+# in-memory Inbox push channel (workspace -> user).
+from ..oms.ledger import OrderManager  # noqa: E402
+
+_oms = OrderManager(_executor)
+_inbox: list[dict] = []
+
 
 class Hub:
     """Tracks connected browsers and broadcasts JSON events to all of them."""
@@ -610,6 +617,86 @@ async def news_search(q: str, limit: int = 25) -> dict:
     return {"available": True, "query": q,
             "results": [{"headline": h.headline, "summary": h.summary,
                          "url": h.url, "created_at": h.created_at.isoformat()} for h in hits]}
+
+
+class StageBody(BaseModel):
+    symbol: str
+    side: str
+    qty: float = 1
+    note: str = ""
+
+
+class CommitBody(BaseModel):
+    message: str
+
+
+@app.get("/api/orders")
+async def orders_list(limit: int = 50) -> dict:
+    """Order ledger: every order's stage->commit->push->fill history."""
+    recs = _oms.history()[-limit:]
+    return {"orders": [{"id": r.id, "state": r.state, "message": r.message,
+                        "note": r.note, "request": r.request, "result": r.result,
+                        "history": r.history} for r in recs]}
+
+
+@app.post("/api/orders/stage")
+async def orders_stage(body: StageBody) -> dict:
+    """Stage an order (recorded, not sent) — the 'git add' of Trading-as-Git."""
+    oid = _oms.stage(OrderRequest(symbol=body.symbol.upper(), side=body.side, qty=body.qty),
+                     note=body.note)
+    await hub.broadcast({"type": "order_staged", "id": oid, "symbol": body.symbol.upper()})
+    return {"ok": True, "id": oid}
+
+
+@app.post("/api/orders/{order_id}/commit")
+async def orders_commit(order_id: str, body: CommitBody) -> dict:
+    try:
+        rec = _oms.commit(order_id, body.message)
+    except (KeyError, ValueError) as exc:
+        return {"ok": False, "detail": str(exc)}
+    return {"ok": True, "id": rec.id, "state": rec.state}
+
+
+@app.post("/api/orders/{order_id}/push")
+async def orders_push(order_id: str) -> dict:
+    """Push (execute) a committed order through guards/risk to the broker."""
+    try:
+        res = _oms.push(order_id)
+    except (KeyError, ValueError) as exc:
+        return {"ok": False, "detail": str(exc)}
+    await hub.broadcast({"type": "order", "ok": res.ok, "symbol": res.symbol,
+                         "side": res.side, "qty": res.qty, "status": res.status,
+                         "detail": res.detail})
+    return {"ok": res.ok, "status": res.status, "detail": res.detail}
+
+
+@app.get("/api/config")
+async def get_config_view() -> dict:
+    """The active behaviour config (config.yaml) for the config-management panel."""
+    return {"config": _config}
+
+
+@app.get("/api/inbox")
+async def inbox_list(limit: int = 50) -> dict:
+    """Inbox push channel: markdown/docs pushed from the workspace to the user."""
+    return {"messages": _inbox[-limit:]}
+
+
+class InboxBody(BaseModel):
+    title: str
+    body: str = ""
+    kind: str = "markdown"
+
+
+@app.post("/api/inbox")
+async def inbox_push(body: InboxBody) -> dict:
+    import datetime as _dt
+
+    msg = {"title": body.title, "body": body.body, "kind": body.kind,
+           "ts_utc": _dt.datetime.now(_dt.timezone.utc).isoformat()}
+    _inbox.append(msg)
+    await hub.broadcast({"type": "inbox", **msg})
+    return {"ok": True, "message": msg}
 
 
 @app.websocket("/ws")

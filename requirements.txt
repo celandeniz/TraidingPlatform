@@ -16,3 +16,4 @@ requests>=2.31
 # ib_async>=1.0        # brokers.*.executor: ib  (Interactive Brokers)
 # croniter>=2.0        # scheduler: cron-expression schedules
 # feedparser>=6.0      # news_rss.enabled: RSS news aggregation
+# mcp>=1.2             # backend.mcp.server: expose tools to external agents
