@@ -102,6 +102,14 @@ risk:
   max_position_pct: 20            # cap single-position notional as % of equity
   max_daily_loss_pct: 3.0         # kill-switch trips here
 
+# Composable pre-trade guard pipeline (stacks in front of the broker, like risk).
+# OFF by default. Net-new vs. risk: per-account symbol whitelist + per-symbol
+# cooldown. Closing (reduce_only) orders always bypass guards.
+guards:
+  enabled: false
+  symbol_whitelist: []            # empty => allow all; e.g. [AAPL, MSFT]
+  cooldown_seconds: 0             # 0 => disabled; min seconds between opens per symbol
+
 # Exit rules (main build spec §4.5)
 exits:
   take_profit_pct: 1.5
