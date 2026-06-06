@@ -151,6 +151,29 @@ if _perspective is not None:
     hub.sinks.append(_perspective.feed)  # forward every broadcast into Perspective
 
 
+# --- WebSocket origin allow-list (anti Cross-Site WebSocket Hijacking) --------
+# A browser sends an Origin header on WS handshakes; a malicious page on another
+# origin could otherwise open our socket and read the live trade stream. We allow
+# same-origin/localhost by default, plus anything in web.allowed_ws_origins.
+# Non-browser clients (CLI, tests) send no Origin and are allowed through.
+_ALLOWED_WS_ORIGINS = set(_config.get("web", {}).get("allowed_ws_origins", []) or [])
+
+
+def _ws_origin_ok(ws: WebSocket) -> bool:
+    origin = ws.headers.get("origin")
+    if not origin:
+        return True  # non-browser client (no Origin header)
+    if origin in _ALLOWED_WS_ORIGINS:
+        return True
+    try:
+        from urllib.parse import urlparse
+
+        host = (urlparse(origin).hostname or "").lower()
+    except Exception:  # noqa: BLE001
+        return False
+    return host in ("localhost", "127.0.0.1", "::1")
+
+
 class DashboardEngine(Engine):
     """Engine that broadcasts every fired signal to the hub instead of printing."""
 
@@ -731,17 +754,14 @@ async def options_greeks(spot: float, strike: float, days: float, vol: float,
 
 @app.get("/api/perspective/status")
 async def perspective_status() -> dict:
-    """Whether the Perspective streaming feed is live (enabled + package present)."""
+    """Whether the Perspective streaming feed is live (enabled + package present).
+
+    Pure read — no executor/snapshot access — so it leaks nothing and has no side
+    effects. The snapshot refresh happens on the authenticated WS connect instead.
+    """
     if _perspective is None:
         return {"available": False,
                 "detail": "disabled (perspective.enabled=false or perspective not installed)"}
-    # refresh snapshot-style tables on demand so a freshly opened viewer isn't empty
-    try:
-        _perspective.replace("positions", _executor.list_positions())
-        if _snapshots is not None:
-            _perspective.replace("equity_curve", _snapshots.equity_curve())
-    except Exception:  # noqa: BLE001
-        pass
     return {"available": True, "tables": list(_perspective._tables.keys()),
             "websocket": "/ws/perspective"}
 
@@ -752,11 +772,25 @@ async def perspective_ws(ws: WebSocket) -> None:
     if _perspective is None:
         await ws.close(code=1011)
         return
+    if not _ws_origin_ok(ws):
+        await ws.close(code=1008)  # cross-site origin — reject the handshake
+        return
+    # Refresh snapshot-style tables on connect (after the origin check), so a
+    # freshly opened viewer isn't empty without exposing data on an open GET.
+    try:
+        _perspective.replace("positions", _executor.list_positions())
+        if _snapshots is not None:
+            _perspective.replace("equity_curve", _snapshots.equity_curve())
+    except Exception:  # noqa: BLE001
+        pass
     await _perspective.handler(ws).run()
 
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket) -> None:
+    if not _ws_origin_ok(ws):
+        await ws.close(code=1008)  # cross-site origin — reject the handshake
+        return
     await hub.connect(ws)
     try:
         await ws.send_text(json.dumps({"type": "hello", "universe": _config["universe"]}))

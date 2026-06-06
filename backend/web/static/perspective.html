@@ -4,24 +4,23 @@
   <meta charset="utf-8" />
   <title>TraidingPlatform — Perspective</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <!-- Perspective WASM client + viewer (FINOS / JPMorgan), loaded from CDN.
-       NOTE: for production, pin exact versions and add Subresource Integrity
-       (integrity="sha384-..."), or vendor these assets locally and serve them
-       from /static. This dashboard binds to localhost by default. -->
-  <script type="module"
-    src="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer/dist/cdn/perspective-viewer.js"></script>
-  <script type="module"
-    src="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer-datagrid/dist/cdn/perspective-viewer-datagrid.js"></script>
-  <script type="module"
-    src="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer-d3fc/dist/cdn/perspective-viewer-d3fc.js"></script>
-  <link rel="stylesheet" crossorigin="anonymous"
-    href="https://cdn.jsdelivr.net/npm/@perspective-dev/viewer/dist/css/themes.css" />
+  <!-- SECURITY: no third-party assets are loaded on page load. The Perspective
+       client (FINOS/JPMorgan) is fetched from a CDN only after an explicit click,
+       so unpinned remote code never auto-executes. For production: VENDOR the
+       client assets that ship with your installed perspective-python under
+       /static/vendor/ and load them same-origin, OR pin exact versions + add
+       Subresource Integrity (integrity="sha384-..."). Also confirm the package
+       scope/version matches your installed perspective-python. -->
   <style>
     html, body { margin: 0; height: 100%; background: #1c1f26; color: #ddd;
                  font-family: system-ui, sans-serif; }
     header { padding: 8px 14px; font-size: 14px; border-bottom: 1px solid #333; }
     header a { color: #6cf; }
-    #grid { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: 46vh; gap: 6px;
+    #consent { padding: 16px; max-width: 760px; }
+    #consent button { background: #2d6cdf; color: #fff; border: 0; padding: 8px 14px;
+                      border-radius: 6px; cursor: pointer; font-size: 14px; }
+    .warn { color: #f3c969; }
+    #grid { display: none; grid-template-columns: 1fr 1fr; grid-auto-rows: 46vh; gap: 6px;
             padding: 6px; box-sizing: border-box; }
     perspective-viewer { background: #20242c; border: 1px solid #333; border-radius: 6px; }
     #err { padding: 14px; color: #f88; display: none; }
@@ -32,6 +31,16 @@
     Perspective live tables — signals · orders · positions · execution quality · equity.
     <a href="/">← back to dashboard</a>
   </header>
+
+  <div id="consent">
+    <p>This view loads the Perspective WebAssembly client from a public CDN
+       (<code>jsdelivr</code>), <span class="warn">unpinned and without Subresource
+       Integrity</span>. Third-party code will execute in your browser only if you
+       continue. For production, vendor the assets locally instead (see the comment
+       in this file).</p>
+    <button type="button" id="load">Load Perspective client from CDN</button>
+  </div>
+
   <div id="err"></div>
   <div id="grid">
     <perspective-viewer id="signals"></perspective-viewer>
@@ -42,30 +51,59 @@
   </div>
 
   <script type="module">
-    import perspective from "https://cdn.jsdelivr.net/npm/@perspective-dev/client/dist/cdn/perspective.js";
-
+    // CDN base — pin an exact version here (and add SRI / vendor locally) for production.
+    const CDN = "https://cdn.jsdelivr.net/npm";
     const TABLES = ["signals", "orders", "positions", "exec_quality", "equity_curve"];
 
-    async function main() {
+    function addTag(tag, attrs) {
+      return new Promise((resolve, reject) => {
+        const el = document.createElement(tag);
+        Object.assign(el, attrs);
+        el.onload = resolve; el.onerror = () => reject(new Error("failed: " + (attrs.src || attrs.href)));
+        document.head.appendChild(el);
+      });
+    }
+
+    async function loadClientAndConnect() {
       const status = await (await fetch("/api/perspective/status")).json();
       if (!status.available) {
-        const e = document.getElementById("err");
-        e.style.display = "block";
-        e.textContent = "Perspective feed unavailable: " + (status.detail || "disabled");
+        showErr("Perspective feed unavailable: " + (status.detail || "disabled"));
         return;
       }
+      // Inject viewer assets only now (explicit user consent).
+      await addTag("link", { rel: "stylesheet", crossOrigin: "anonymous",
+        href: `${CDN}/@finos/perspective-viewer/dist/css/themes.css` });
+      await addTag("script", { type: "module",
+        src: `${CDN}/@finos/perspective-viewer/dist/cdn/perspective-viewer.js` });
+      await addTag("script", { type: "module",
+        src: `${CDN}/@finos/perspective-viewer-datagrid/dist/cdn/perspective-viewer-datagrid.js` });
+      await addTag("script", { type: "module",
+        src: `${CDN}/@finos/perspective-viewer-d3fc/dist/cdn/perspective-viewer-d3fc.js` });
+
+      const perspectiveMod = await import(`${CDN}/@finos/perspective/dist/cdn/perspective.js`);
+      const perspective = perspectiveMod.default;
+
       const proto = location.protocol === "https:" ? "wss" : "ws";
       const ws = await perspective.websocket(`${proto}://${location.host}/ws/perspective`);
+
+      document.getElementById("consent").style.display = "none";
+      document.getElementById("grid").style.display = "grid";
       for (const name of TABLES) {
         try {
           const table = await ws.open_table(name);
           await document.getElementById(name).load(table);
-        } catch (err) {
-          console.warn("table", name, err);
-        }
+        } catch (err) { console.warn("table", name, err); }
       }
     }
-    main();
+
+    function showErr(msg) {
+      const e = document.getElementById("err");
+      e.style.display = "block"; e.textContent = msg;
+    }
+
+    document.getElementById("load").addEventListener("click", () => {
+      loadClientAndConnect().catch((e) => showErr(String(e)));
+    });
   </script>
 </body>
 </html>
