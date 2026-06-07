@@ -1,0 +1,51 @@
+/* DynamicsOps-inspired theme layer (applied to the no-build vanilla dashboard).
+   Translated from the AIResources "DynamicsOps Design System" tokens: violet brand
+   (hsl 252 83%), light + dark modes, 0.85rem radius, glow shadow, semantic colors.
+   Each page sets the DARK palette in its own :root; `:root.light` here overrides it
+   (higher specificity) for light mode. theme.js toggles the class + persists it. */
+
+:root {
+  --radius: 0.85rem;
+  --primary-hsl: 252 83% 68%;                 /* brand violet (dark) */
+  --shadow-glow: 0 0 0 1px hsl(252 83% 68% / .28),
+                 0 10px 30px -14px hsl(252 83% 68% / .55);
+  --shadow-card: 0 1px 0 rgba(255,255,255,.02), 0 8px 24px -18px rgba(0,0,0,.6);
+}
+
+/* Light mode — DynamicsOps light tokens (violet brand kept). */
+:root.light {
+  --bg: #f7f6f2;
+  --panel: #ffffff;
+  --panel2: #f3f3f8;
+  --panel3: #ececf3;
+  --line: #dcdce6;
+  --text: #16181f;
+  --dim: #5d6573;
+  --chip: #ececf3;
+  --green: #1f9d63;
+  --red: #d8453f;
+  --amber: #d98a0a;
+  --blue: #6a45df;                            /* brand violet (light, 252 83% 60%) */
+  --cyan: #2aa7a3;
+  --primary-hsl: 252 83% 60%;
+  --shadow-card: 0 1px 2px rgba(16,18,31,.06), 0 10px 28px -18px rgba(16,18,31,.18);
+}
+:root.light body { background: var(--bg); }
+
+/* shadcn-ish polish that reads the page's existing variables */
+.card { box-shadow: var(--shadow-card); }
+button.primary,
+.buyb:hover, .whyb:hover { box-shadow: var(--shadow-glow); }
+nav a.active { box-shadow: inset 2px 0 0 var(--blue); }
+
+/* Theme toggle injected by theme.js */
+.theme-toggle {
+  margin-left: 6px; width: 34px; height: 30px; padding: 0; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 15px;
+}
+.theme-toggle:hover { border-color: var(--blue); }
+
+/* Subtle, themed scrollbars */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--line); border-radius: 999px; }
+*::-webkit-scrollbar-track { background: transparent; }

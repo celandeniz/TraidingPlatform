@@ -12,8 +12,8 @@
        Subresource Integrity (integrity="sha384-..."). Also confirm the package
        scope/version matches your installed perspective-python. -->
   <style>
-    :root { --bg:#090d12; --panel:#111820; --panel2:#0d131a; --line:#243141;
-            --text:#e1e8ef; --dim:#8996a5; --blue:#63a8ff; --amber:#f2b84b; --red:#ff6478; }
+    :root { --bg:#0e1117; --panel:#171c25; --panel2:#12161e; --line:#2a3038;
+            --text:#e6e9ef; --dim:#959ba8; --blue:#7c5cf6; --amber:#f2b84b; --red:#ff6478; }
     html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
                  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
     header { display:flex; align-items:center; justify-content:space-between; gap:16px;
@@ -26,12 +26,13 @@
                       padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 14px; }
     .warn { color: var(--amber); }
     .notice { color: var(--dim); border:1px solid var(--line); background:var(--panel);
-              border-radius:8px; padding:14px; margin-bottom:12px; }
+              border-radius:12px; padding:14px; margin-bottom:12px; }
     #grid { display: none; grid-template-columns: 1fr 1fr; grid-auto-rows: 46vh; gap: 8px;
             padding: 8px; box-sizing: border-box; }
     perspective-viewer { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
     #err { padding: 14px; color: var(--red); display: none; }
   </style>
+<link rel="stylesheet" href="/static/theme.css" />
 </head>
 <body>
   <header>
@@ -116,5 +117,6 @@
       loadClientAndConnect().catch((e) => showErr(String(e)));
     });
   </script>
+<script src="/static/theme.js"></script>
 </body>
 </html>

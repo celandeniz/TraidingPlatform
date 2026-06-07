@@ -20,3 +20,7 @@ venv/
 # screenshots / playwright artifacts
 dashboard*.png
 .playwright-mcp/
+
+# local screenshot artefacts
+*.png
+.playwright-mcp/

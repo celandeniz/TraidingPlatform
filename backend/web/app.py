@@ -22,6 +22,7 @@ from typing import Optional
 import pandas as pd
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..brokers import build_routing_executor
@@ -38,6 +39,8 @@ from ..profiles import feature_toggles, profile_summaries, set_active_profile
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="M7 Spike-Fade Dashboard")
+# Serve static assets (theme.css, theme.js, and any future files) under /static.
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 _settings = get_settings()
 _config = get_config()

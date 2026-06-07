@@ -6,9 +6,9 @@
 <title>TraidingPlatform Dashboard</title>
 <style>
   :root{
-    --bg:#090d12; --panel:#111820; --panel2:#0d131a; --panel3:#151e28; --line:#243141;
-    --text:#e1e8ef; --dim:#8996a5; --green:#2ed18f; --red:#ff6478;
-    --amber:#f2b84b; --blue:#63a8ff; --cyan:#5fd3d0; --chip:#192331;
+    --bg:#0e1117; --panel:#171c25; --panel2:#12161e; --panel3:#23282f; --line:#2a3038;
+    --text:#e6e9ef; --dim:#959ba8; --green:#2ed18f; --red:#ff6478;
+    --amber:#f2b84b; --blue:#7c5cf6; --cyan:#5fd3d0; --chip:#23282f;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
@@ -19,7 +19,7 @@
   header h1{font-size:16px;margin:0;letter-spacing:.2px;font-weight:750;white-space:nowrap}
   .brand-sub{font-size:11px;color:var(--dim);margin-top:1px}
   .badge{font-size:11px;font-weight:800;padding:4px 10px;border-radius:999px;
-    background:rgba(74,163,255,.14);color:var(--blue);border:1px solid rgba(74,163,255,.3)}
+    background:rgba(124,92,246,.14);color:var(--blue);border:1px solid rgba(124,92,246,.3)}
   .badge.paper{background:rgba(39,215,150,.13);color:var(--green);
     border-color:rgba(39,215,150,.32)}
   .badge.live{background:rgba(255,92,112,.15);color:var(--red);border-color:rgba(255,92,112,.36)}
@@ -34,14 +34,14 @@
   .dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;
     background:var(--red);vertical-align:middle}
   .dot.on{background:var(--green);box-shadow:0 0 8px var(--green)}
-  button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);
+  button{font:inherit;cursor:pointer;border-radius:12px;border:1px solid var(--line);
     background:var(--chip);color:var(--text);padding:6px 12px;transition:.12s}
   button:hover{border-color:#33425a}
-  button.primary{background:rgba(74,163,255,.16);border-color:rgba(74,163,255,.4);color:#bcdcff}
+  button.primary{background:rgba(124,92,246,.16);border-color:rgba(124,92,246,.4);color:#d4c7fb}
   .shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:calc(100vh - 65px)}
   nav{position:sticky;top:65px;height:calc(100vh - 65px);overflow:auto;border-right:1px solid var(--line);
     background:var(--panel2);padding:14px 12px}
-  nav a{display:block;color:var(--dim);padding:8px 10px;border-radius:8px;font-size:13px;font-weight:650}
+  nav a{display:block;color:var(--dim);padding:8px 10px;border-radius:12px;font-size:13px;font-weight:650}
   nav a:hover,nav a.active{background:var(--chip);color:var(--text)}
   nav .nav-k{margin:14px 10px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.7px;color:#667383}
   .content{min-width:0}
@@ -54,7 +54,7 @@
   .section-note{font-size:12px;color:var(--dim)}
   .grid-2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr);gap:14px}
   .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
   .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
     margin:0;padding:11px 14px;border-bottom:1px solid var(--line);font-weight:650}
   .card h3{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);
@@ -77,12 +77,12 @@
   .act{display:flex;gap:6px}
   .buyb{background:rgba(39,215,150,.14);border-color:rgba(39,215,150,.35);color:#9af0cf;padding:4px 10px}
   .sellb{background:rgba(255,92,112,.14);border-color:rgba(255,92,112,.35);color:#ffb3bd;padding:4px 10px}
-  .whyb{background:rgba(74,163,255,.12);border-color:rgba(74,163,255,.32);color:#bcdcff;padding:4px 10px}
+  .whyb{background:rgba(124,92,246,.12);border-color:rgba(124,92,246,.32);color:#d4c7fb;padding:4px 10px}
   #copilot{padding:14px}
   .cp-sym{font-weight:700;font-size:14px}
   .cp-tag{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px}
   .cp-tag.earnings{background:rgba(255,181,71,.16);color:var(--amber)}
-  .cp-tag.news{background:rgba(74,163,255,.16);color:var(--blue)}
+  .cp-tag.news{background:rgba(124,92,246,.16);color:var(--blue)}
   .cp-tag.macro{background:rgba(189,140,255,.16);color:#bd8cff}
   .cp-tag.none{background:var(--chip);color:var(--dim)}
   .cp-sum{margin:8px 0;line-height:1.5}
@@ -91,17 +91,17 @@
   .trow{display:flex;gap:8px;padding:7px 14px;border-top:1px solid var(--line);align-items:center}
   .trow .t{color:var(--dim);font-variant-numeric:tabular-nums;min-width:60px}
   .flash{animation:fl 1s ease-out}
-  @keyframes fl{from{background:rgba(74,163,255,.22)}to{background:transparent}}
+  @keyframes fl{from{background:rgba(124,92,246,.22)}to{background:transparent}}
   .muted{color:var(--dim);padding:16px;text-align:center}
   .full{grid-column:1/-1}
   input,select,.qty{background:var(--chip);color:var(--text);border:1px solid var(--line);
-    border-radius:6px;padding:4px 6px}
+    border-radius:9px;padding:4px 6px}
   .qty{width:54px}
   .wide{width:150px}
   .bt-controls{display:flex;gap:12px;align-items:center;padding:10px 14px;flex-wrap:wrap}
   .panel-body,#btResult{padding:12px 14px}
   .bt-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:6px 0 10px}
-  .bt-m{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .bt-m{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
   .bt-k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim)}
   .bt-v{font-size:16px;font-weight:700;font-variant-numeric:tabular-nums}
   .bt-ai-k{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--dim);margin-top:6px}
@@ -134,6 +134,7 @@
     .grid-2,.grid-3,.workflow{grid-template-columns:1fr}
   }
 </style>
+<link rel="stylesheet" href="/static/theme.css" />
 </head>
 <body>
 <header>
@@ -705,7 +706,7 @@ function drawBtChart(b){
     return {
       time:m.time,
       position: isEntry ? "belowBar":"aboveBar",
-      color: isEntry ? (long?"#27d796":"#ff5c70") : "#4aa3ff",
+      color: isEntry ? (long?"#27d796":"#ff5c70") : "#7c5cf6",
       shape: isEntry ? (long?"arrowUp":"arrowDown") : "circle",
       text: isEntry ? (long?"BUY":"SHORT") : (m.reason||"exit"),
     };
@@ -1077,5 +1078,6 @@ setupNav();
 loadProfilesAndStatus();
 loadConfig();
 </script>
+<script src="/static/theme.js"></script>
 </body>
 </html>
