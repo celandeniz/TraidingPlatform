@@ -2,6 +2,8 @@
 
 Python/FastAPI trading research and execution control surface for the M7 strategy stack. The default configuration is safe: test profile, paper-style routing, no autonomous execution, and no live trading unless `LIVE_TRADING=true` is set intentionally.
 
+The primary UI is now a Next.js + Tailwind + shadcn/ui app in `frontend/`. The original vanilla FastAPI dashboard is still available at `/legacy`.
+
 ## What It Includes
 
 - Live / Signals dashboard with WebSocket price, signal, order, and position updates.
@@ -33,16 +35,28 @@ Fill `.env` with paper/test credentials first. Keep `.env` uncommitted.
 # run the CLI signal engine
 .venv/bin/python -m backend.runner
 
-# run the FastAPI dashboard
+# run the FastAPI API + legacy dashboard
 .venv/bin/uvicorn backend.web.app:app --reload
+
+# run the Next.js frontend
+pnpm --dir frontend install
+pnpm --dir frontend dev
 
 # tests
 .venv/bin/python -m pytest backend/tests/ -q
 ```
 
-Dashboard routes:
+Frontend routes:
 
-- `/` main dashboard
+- `frontend/` Next.js app, defaults to `NEXT_PUBLIC_API_BASE=http://127.0.0.1:8765`
+- `/live` Live / Signals
+- `/positions` positions and OMS orders
+- `/scanner` estimated-edge scanner
+- `/setup` setup and profiles
+
+FastAPI legacy dashboard routes:
+
+- `/legacy` main legacy dashboard
 - `/setup` account profiles, feature flags, dependency/key presence
 - `/perspective` optional Perspective live tables
 
@@ -67,4 +81,4 @@ Endpoints that report environment status return booleans for key presence only, 
 
 ## Development Notes
 
-Add strategies by registering them in `backend/strategy/registry.py` and listing them under `strategies:` in `backend/config.yaml`. The static UI is intentionally plain HTML/CSS/JS served by FastAPI: no frontend framework, bundler, or build step.
+Add strategies by registering them in `backend/strategy/registry.py` and listing them under `strategies:` in `backend/config.yaml`. The FastAPI app keeps serving the JSON API, WebSocket, and legacy static UI; new UI work should live in `frontend/`.

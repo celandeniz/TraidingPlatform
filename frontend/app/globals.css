@@ -1,0 +1,100 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.85rem;
+    --font-sans: "Aptos", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "Cascadia Code", "SFMono-Regular", ui-monospace, monospace;
+    --font-display: "Aptos Display", "Segoe UI Variable Display", ui-sans-serif, system-ui, sans-serif;
+    --ease-ops: cubic-bezier(.2, .8, .2, 1);
+
+    --background: 44 24% 96%;
+    --foreground: 225 17% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 225 17% 10%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 225 17% 10%;
+    --primary: 252 83% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 240 18% 94%;
+    --secondary-foreground: 225 17% 10%;
+    --muted: 240 17% 93%;
+    --muted-foreground: 220 10% 41%;
+    --accent: 183 59% 42%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 3 66% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 238 16% 88%;
+    --input: 238 16% 88%;
+    --ring: 252 83% 60%;
+    --success: 151 67% 37%;
+    --warning: 37 92% 45%;
+    --danger: 3 66% 55%;
+    --shadow-glow: 0 0 0 1px hsl(252 83% 60% / .25), 0 14px 36px -18px hsl(252 83% 60% / .58);
+    --shadow-card: 0 1px 2px hsl(225 17% 10% / .06), 0 12px 30px -22px hsl(225 17% 10% / .28);
+  }
+
+  .dark {
+    --background: 220 24% 7%;
+    --foreground: 220 24% 92%;
+    --card: 220 23% 11%;
+    --card-foreground: 220 24% 92%;
+    --popover: 220 23% 11%;
+    --popover-foreground: 220 24% 92%;
+    --primary: 252 83% 68%;
+    --primary-foreground: 252 53% 11%;
+    --secondary: 219 24% 14%;
+    --secondary-foreground: 220 24% 92%;
+    --muted: 219 22% 16%;
+    --muted-foreground: 222 10% 64%;
+    --accent: 179 58% 60%;
+    --accent-foreground: 220 24% 7%;
+    --destructive: 351 100% 70%;
+    --destructive-foreground: 220 24% 7%;
+    --border: 218 16% 20%;
+    --input: 218 16% 20%;
+    --ring: 252 83% 68%;
+    --success: 156 65% 50%;
+    --warning: 39 86% 62%;
+    --danger: 351 100% 70%;
+    --shadow-glow: 0 0 0 1px hsl(252 83% 68% / .28), 0 10px 30px -14px hsl(252 83% 68% / .55);
+    --shadow-card: 0 1px 0 hsl(0 0% 100% / .03), 0 12px 30px -20px hsl(0 0% 0% / .72);
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1, "cv04" 1;
+  }
+
+  a {
+    @apply text-primary underline-offset-4 hover:underline;
+  }
+}
+
+@layer utilities {
+  .ops-panel {
+    @apply border bg-card shadow-card;
+  }
+
+  .metric-label {
+    @apply text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-muted-foreground;
+  }
+
+  .mono-num {
+    @apply font-mono tabular-nums;
+  }
+}

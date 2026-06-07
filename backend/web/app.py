@@ -21,6 +21,7 @@ from typing import Optional
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -39,6 +40,18 @@ from ..profiles import feature_toggles, profile_summaries, set_active_profile
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 app = FastAPI(title="M7 Spike-Fade Dashboard")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["content-type"],
+)
 # Serve static assets (theme.css, theme.js, and any future files) under /static.
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -236,13 +249,28 @@ async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/legacy")
+async def legacy_index() -> FileResponse:
+    return FileResponse(STATIC_DIR / "index.html")
+
+
 @app.get("/setup")
 async def setup() -> FileResponse:
     return FileResponse(STATIC_DIR / "setup.html")
 
 
+@app.get("/legacy/setup")
+async def legacy_setup() -> FileResponse:
+    return FileResponse(STATIC_DIR / "setup.html")
+
+
 @app.get("/perspective")
 async def perspective_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "perspective.html")
+
+
+@app.get("/legacy/perspective")
+async def legacy_perspective_page() -> FileResponse:
     return FileResponse(STATIC_DIR / "perspective.html")
 
 
