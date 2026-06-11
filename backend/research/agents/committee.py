@@ -20,6 +20,7 @@ def run_committee(
     client: ClaudeClient, symbol: str, side: str, *,
     context: str, headlines: list[str], gate: CatalystVerdict,
     bb_meta: dict, cfg: dict,
+    extra_reports: list | None = None,
 ) -> CommitteeVerdict:
     start_spent = client.spent_usd
     analysts = []
@@ -28,6 +29,8 @@ def run_committee(
             client, symbol, context=context, headlines=headlines,
             gate=gate, bb_meta=bb_meta, deep=cfg.get("deep_analysts", False),
         )
+        if extra_reports:
+            analysts = analysts + list(extra_reports)
         digest = summarize_reports(analysts)
         debate = run_debate(
             client, symbol, side=side, analyst_digest=digest,

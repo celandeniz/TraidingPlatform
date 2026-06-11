@@ -596,6 +596,19 @@ async def copilot(symbol: str) -> dict:
     return event
 
 
+def _panel_report(res) -> "AnalystReport":
+    """Map a PanelResult to ONE committee AnalystReport (spec: committee hook)."""
+    from ..research.base import AnalystReport
+
+    return AnalystReport(
+        role="persona_panel", side=res.verdict,
+        confidence=abs(res.score),
+        rationale=f"panel consensus {res.verdict} (score {res.score}); "
+                  f"fundamentals {'ok' if res.fundamentals_available else 'unavailable'}",
+        available=True,
+    )
+
+
 @app.get("/api/panel/{symbol}")
 async def api_panel(symbol: str, refresh: bool = False) -> dict:
     """Investor-persona panel verdict for one symbol (cached, on-demand)."""
@@ -629,8 +642,17 @@ async def committee(symbol: str) -> dict:
         headlines = [h.headline for h in _news_unified.latest(symbol=sym, limit=12)]
         gate = gate_eval("buy", regime="range", news_ages_minutes=[],
                          earnings_in_days=None, gap_pct=None)
+
+        extra_reports = None
+        if _panel is not None and _pp_cfg.get("committee_hook", False):
+            try:
+                extra_reports = [_panel_report(_panel.run(sym))]
+            except Exception:  # noqa: BLE001 — the hook must never break the committee
+                extra_reports = None
+
         return run_committee(_llm, sym, "buy", context=f"On-demand review of {sym}.",
-                             headlines=headlines, gate=gate, bb_meta={}, cfg=ccfg)
+                             headlines=headlines, gate=gate, bb_meta={}, cfg=ccfg,
+                             extra_reports=extra_reports)
 
     v = await _a.to_thread(_run)
     event = {
