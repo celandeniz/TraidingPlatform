@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -36,6 +36,16 @@ from ..research.news_provider import AlpacaNewsProvider
 from ..runner import Engine
 from ..settings import BACKEND_DIR, REPO_DIR, get_config, get_raw_config, get_settings
 from ..profiles import feature_toggles, profile_summaries, set_active_profile
+from ..backtest.tournament import (
+    DEFAULT_STORE as TOURNAMENT_STORE_DEFAULT,
+    list_runs as tournament_list_runs,
+    load_latest as tournament_load_latest,
+    run_tournament,
+    save_run as tournament_save_run,
+)
+
+TOURNAMENT_STORE = TOURNAMENT_STORE_DEFAULT
+_tournament_state: dict = {"running": False, "progress": "", "error": ""}
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -1040,6 +1050,46 @@ async def scan(mode: Optional[str] = None, top_n: Optional[int] = None) -> dict:
     await hub.broadcast({"type": "scan", "scanned": out["scanned"],
                          "n": len(out["candidates"])})
     return out
+
+
+@app.post("/api/tournament/run")
+def api_tournament_run(background_tasks: BackgroundTasks):
+    """Kick off a tournament in the background. Idempotent while running."""
+    if _tournament_state["running"]:
+        return {"ok": False, "running": True, "progress": _tournament_state["progress"]}
+
+    def _job():
+        _tournament_state.update(running=True, progress="starting", error="")
+        try:
+            cfg = _config
+            run = run_tournament(
+                cfg,
+                progress=lambda name, i, total: _tournament_state.update(
+                    progress=f"{name} ({i}/{total})"),
+            )
+            tournament_save_run(run, store_dir=TOURNAMENT_STORE)
+        except Exception as exc:  # noqa: BLE001 — surfaced via status, not lost
+            _tournament_state["error"] = str(exc)
+        finally:
+            _tournament_state["running"] = False
+
+    background_tasks.add_task(_job)
+    return {"ok": True, "running": True}
+
+
+@app.get("/api/tournament/latest")
+def api_tournament_latest():
+    data = tournament_load_latest(store_dir=TOURNAMENT_STORE)
+    if data is None:
+        raise HTTPException(status_code=404, detail="no tournament runs yet")
+    data["status"] = dict(_tournament_state)
+    return data
+
+
+@app.get("/api/tournament/runs")
+def api_tournament_runs():
+    return {"runs": tournament_list_runs(store_dir=TOURNAMENT_STORE),
+            "status": dict(_tournament_state)}
 
 
 @app.on_event("startup")
