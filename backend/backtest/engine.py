@@ -196,10 +196,11 @@ def run_backtest(
                 entry_px = _apply_cost(raw_entry, side_is_buy=(want == "long"), costs=costs)
                 pos = {"side": want, "entry_idx": i + 1, "entry_px": entry_px,
                        "high_water": entry_px,
-                       # per-signal exit overrides; fall back to global ExitParams
-                       "stop_loss_pct": sig.get("stop_loss_pct", exits.stop_loss_pct),
-                       "take_profit_pct": sig.get("take_profit_pct", exits.take_profit_pct),
-                       "time_stop_bars": sig.get("time_stop_bars", exits.time_stop_bars)}
+                       # per-signal exit overrides; None/absent falls back to ExitParams
+                       # (trailing_stop_pct is not per-signal — dynamic; always global)
+                       "stop_loss_pct": sig.get("stop_loss_pct") if sig.get("stop_loss_pct") is not None else exits.stop_loss_pct,
+                       "take_profit_pct": sig.get("take_profit_pct") if sig.get("take_profit_pct") is not None else exits.take_profit_pct,
+                       "time_stop_bars": sig.get("time_stop_bars") if sig.get("time_stop_bars") is not None else exits.time_stop_bars}
                 i += 1
                 continue
         i += 1
