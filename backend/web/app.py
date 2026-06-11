@@ -135,6 +135,36 @@ from ..research.news_aggregator import UnifiedNews  # noqa: E402
 
 _news_unified = UnifiedNews(alpaca=_news, rss=_rss, yahoo=YahooProvider())
 
+# Persona panel (FinceptTerminal-inspired, clean-room). Built only when an LLM
+# is configured AND persona_panel.enabled (default true). On-demand endpoint —
+# never touches the trading path.
+_panel = None  # PersonaPanel | None
+_pp_cfg = _config.get("persona_panel", {})
+if _llm is not None and _pp_cfg.get("enabled", True):
+    from ..data.daily_cache import DailyBarCache
+    from ..data.fundamentals import FundamentalsProvider
+    from ..research.panel import PersonaPanel
+
+    _pp_store = Path(__file__).resolve().parent.parent / "store"
+    _panel_daily = DailyBarCache(_pp_store / "daily_cache")
+
+    def _panel_bars(sym: str):
+        try:
+            return _panel_daily.get(sym)
+        except Exception:  # noqa: BLE001 — price summary is best-effort
+            return None
+
+    _panel = PersonaPanel(
+        _llm,
+        FundamentalsProvider(_pp_store / "fundamentals_cache"),
+        cache_dir=_pp_store / "panel_cache",
+        daily_bars_fn=_panel_bars,
+        headlines_fn=lambda sym: [h.headline for h in
+                                  _news_unified.latest(symbol=sym, limit=5)],
+        ttl_hours=float(_pp_cfg.get("cache_ttl_hours", 24)),
+        weights=_pp_cfg.get("weights") or {},
+    )
+
 # Phase D: order ledger (Trading-as-Git) over the same executor, and a simple
 # in-memory Inbox push channel (workspace -> user).
 from ..execution.analytics import ExecutionAnalytics  # noqa: E402
@@ -564,6 +594,18 @@ async def copilot(symbol: str) -> dict:
     }
     await hub.broadcast(event)
     return event
+
+
+@app.get("/api/panel/{symbol}")
+async def api_panel(symbol: str, refresh: bool = False) -> dict:
+    """Investor-persona panel verdict for one symbol (cached, on-demand)."""
+    if _panel is None:
+        raise HTTPException(status_code=503, detail="llm unavailable")
+    import asyncio as _a
+    from dataclasses import asdict as _asdict
+
+    res = await _a.to_thread(_panel.run, symbol.upper(), refresh=refresh)
+    return _asdict(res)
 
 
 @app.get("/api/committee/{symbol}")

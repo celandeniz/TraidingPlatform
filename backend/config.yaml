@@ -162,6 +162,14 @@ pairs_statarb:
   hedge_window: 60
   cost_bps: 3.0
 
+# Persona panel (FinceptTerminal-inspired, clean-room). On-demand research
+# surface; committee_hook adds ONE persona_panel analyst to the committee.
+persona_panel:
+  enabled: true
+  cache_ttl_hours: 24
+  weights: {}              # per-persona weight overrides; default equal
+  committee_hook: false
+
 volume:
   window: 20
   mult: 1.5
