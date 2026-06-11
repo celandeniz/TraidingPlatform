@@ -425,3 +425,10 @@ research:
         pmo: general                   # PMO Agent          -> qwen3:14b
         proposal: general              # Proposal Agent     -> qwen3:14b
         analysis: reasoning            # Analiz Agent       -> deepseek-r1:14b
+
+# Strategy tournament (on-demand; POST /api/tournament/run)
+tournament:
+  intraday_lookback_bars: 11700   # ~30 sessions of 1m bars
+  cost_bps: 5.0
+  # daily_symbols: []             # default: full resolved universe
+  # intraday_symbols: []          # default: first 20 of the sorted universe
