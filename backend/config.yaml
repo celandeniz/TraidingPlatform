@@ -133,6 +133,16 @@ gap_go:
   risk_reward: 2.0
   allow_short: false
 
+# Daily-bar portfolio strategies (tournament candidates)
+xs_momentum:
+  top_n: 20
+  regime_filter: true
+  benchmark: SPY
+sector_rotation:
+  top_n: 3
+  regime_filter: true
+  benchmark: SPY
+
 volume:
   window: 20
   mult: 1.5

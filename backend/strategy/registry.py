@@ -16,9 +16,11 @@ from .macd_cross import MacdCrossStrategy
 from .gap_go import GapGoStrategy
 from .orb_breakout import OrbBreakoutStrategy
 from .rsi_reversion import RsiReversionStrategy
+from .sector_rotation import SectorRotationStrategy
 from .spike_fade import SpikeFadeStrategy
 from .volume_confirm import VolumeConfirmStrategy
 from .vwap_reversion import VwapReversionStrategy
+from .xs_momentum import XsMomentumStrategy
 
 SIGNAL_STRATEGIES: dict[str, type] = {
     "spike_fade": SpikeFadeStrategy,
@@ -36,6 +38,13 @@ SIGNAL_STRATEGIES: dict[str, type] = {
 CONFIRMATION_STRATEGIES: dict[str, type] = {
     "bollinger": BollingerConfluenceStrategy,
     "volume": VolumeConfirmStrategy,
+}
+
+# Daily-bar cross-sectional strategies (tournament / portfolio engine — not the
+# 1m signal runner).
+PORTFOLIO_STRATEGIES: dict[str, type] = {
+    "xs_momentum": XsMomentumStrategy,
+    "sector_rotation": SectorRotationStrategy,
 }
 
 
