@@ -4,6 +4,8 @@ import type {
   ProfilesResponse,
   ScanResponse,
   SetupStatus,
+  TournamentLatest,
+  TournamentRuns,
   UniverseResponse,
 } from "@/lib/types";
 
@@ -64,4 +66,18 @@ export function getUniverse(mode?: string) {
 export function getScan(mode: string, topN: number) {
   const params = new URLSearchParams({ mode, top_n: String(topN) });
   return api<ScanResponse>(`/api/scan?${params}`);
+}
+
+export function getTournamentLatest() {
+  return api<TournamentLatest>("/api/tournament/latest");
+}
+
+export function getTournamentRuns() {
+  return api<TournamentRuns>("/api/tournament/runs");
+}
+
+export function runTournament() {
+  return api<{ ok: boolean; running: boolean }>("/api/tournament/run", {
+    method: "POST",
+  });
 }

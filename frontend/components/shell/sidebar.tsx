@@ -10,6 +10,7 @@ import {
   Newspaper,
   Radar,
   Settings2,
+  Trophy,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -27,7 +28,10 @@ const groups = [
   },
   {
     label: "Validation",
-    items: [{ href: "/backtest", label: "Backtest & Validation", icon: LineChart }],
+    items: [
+      { href: "/backtest", label: "Backtest & Validation", icon: LineChart },
+      { href: "/tournament", label: "Tournament", icon: Trophy },
+    ],
   },
   {
     label: "Workspace",

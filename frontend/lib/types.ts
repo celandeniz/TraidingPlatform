@@ -101,3 +101,43 @@ export type WsEvent = {
   candidates?: ScanCandidate[];
   [key: string]: unknown;
 };
+
+export type TournamentGate = {
+  passed: boolean;
+  failures: string[];
+};
+
+export type TournamentReport = {
+  name: string;
+  kind: "trades" | "portfolio" | "pairs";
+  metrics: {
+    oos_sharpe?: number;
+    per_trade_sharpe?: number;
+    total_return_pct?: number;
+    annual_return_pct?: number;
+    max_drawdown_pct?: number;
+    profit_factor?: number;
+    n_trades?: number;
+    n_rebalances?: number;
+    significant?: boolean;
+    [k: string]: unknown;
+  };
+  equity_curve: [string, number][];
+  windows: { year?: number; return_pct?: number }[];
+  gates: TournamentGate | null;
+  error: string;
+};
+
+export type TournamentStatus = { running: boolean; progress: string; error: string };
+
+export type TournamentLatest = {
+  started_at: string;
+  config_hash: string;
+  reports: TournamentReport[];
+  status?: TournamentStatus;
+};
+
+export type TournamentRuns = {
+  runs: { file: string; started_at: string; n_strategies: number }[];
+  status?: TournamentStatus;
+};
