@@ -57,6 +57,82 @@ def test_no_prior_session_no_signal():
     assert generate(df, gap_min_pct=2.0, confirm_minutes=5)["buy"] is False
 
 
+def _two_days_with_postmarket(
+    day1_rth_close: float,
+    day1_pm_closes: list[float],
+    day2_closes: list[float],
+) -> pd.DataFrame:
+    """Day 1: 30 RTH bars ending at day1_rth_close, then post-market bars
+    drifting to the last value in day1_pm_closes. Day 2: 09:30 ET +."""
+    # Day 1 RTH: 30 bars 15:30 ET onwards
+    i1_rth = pd.date_range("2026-06-08 15:30", periods=30, freq="1min",
+                           tz="America/New_York").tz_convert("UTC")
+    d1_rth = pd.DataFrame({"open": day1_rth_close, "high": day1_rth_close + 0.05,
+                           "low": day1_rth_close - 0.05, "close": day1_rth_close,
+                           "volume": 5_000.0}, index=i1_rth)
+    # Day 1 post-market: starts at 16:30 ET, drifts down
+    i1_pm = pd.date_range("2026-06-08 16:30", periods=len(day1_pm_closes), freq="1min",
+                          tz="America/New_York").tz_convert("UTC")
+    pm_s = pd.Series(day1_pm_closes, index=i1_pm)
+    d1_pm = pd.DataFrame({"open": pm_s.shift(1).fillna(pm_s.iloc[0]),
+                          "high": pm_s + 0.05, "low": pm_s - 0.05,
+                          "close": pm_s, "volume": 500.0})
+    # Day 2 RTH
+    i2 = pd.date_range("2026-06-09 09:30", periods=len(day2_closes), freq="1min",
+                       tz="America/New_York").tz_convert("UTC")
+    c = pd.Series(day2_closes, index=i2)
+    d2 = pd.DataFrame({"open": c.shift(1).fillna(c.iloc[0]), "high": c + 0.05,
+                       "low": c - 0.05, "close": c, "volume": 20_000.0})
+    return pd.concat([d1_rth, d1_pm, d2])
+
+
+def test_prev_close_uses_rth_close_not_postmarket():
+    """Bug regression: prev_close must be the last RTH bar, not a post-market print.
+
+    Day 1 RTH close = 100.0; post-market drifts to 98.0.
+    Day 2 opens at 102.0: 2% above RTH close (100), but 4.08% above post-market (98).
+    With gap_min_pct=3.0 the buy must NOT fire (gap vs RTH close is only 2%).
+    Under the buggy code it would fire (measuring vs 98.0 → 4.08% gap).
+    We also confirm the setup is otherwise valid: gap_min_pct=1.5 must fire.
+    """
+    # Day 2: open at 102.0, stays well above VWAP, bar 6 breaks the first-5-min high
+    # Bars: [102.0, 101.9, 102.0, 102.1, 102.2, 102.6]
+    # 5-min high = 102.2; bar 6 close = 102.6 > 102.2 -> breakout condition met
+    day2 = [102.0, 101.9, 102.0, 102.1, 102.2, 102.6]
+    # Post-market bars drift from 100 -> 98
+    postmarket = [99.5, 99.0, 98.5, 98.2, 98.0]
+    df = _two_days_with_postmarket(100.0, postmarket, day2)
+
+    # gap vs RTH close = (102/100 - 1)*100 = 2.0% < 3.0% -> must NOT fire
+    sig_high_threshold = generate(df, gap_min_pct=3.0, confirm_minutes=5)
+    assert sig_high_threshold["buy"] is False, (
+        "buy fired with gap_min_pct=3.0 — prev_close is being measured against "
+        "a post-market bar instead of the RTH close"
+    )
+
+    # gap vs RTH close = 2.0% > 1.5% -> must fire (proves setup is otherwise valid)
+    sig_low_threshold = generate(df, gap_min_pct=1.5, confirm_minutes=5)
+    assert sig_low_threshold["buy"] is True, (
+        "buy did not fire with gap_min_pct=1.5 — the day-2 fixture may not satisfy "
+        "all other conditions (above VWAP, break of 5-min high, gap not filled)"
+    )
+
+
+def test_gap_down_short_fires_when_allowed():
+    """Short path: prev RTH close 100, day 2 opens 97 (3% gap-down), stays below
+    VWAP, breaks first-5-min low on bar 6, never trades back through 100."""
+    # Day 2 closes: [97.0, 97.1, 97.0, 96.9, 96.8, 96.4]
+    # 5-min low = 96.8; bar 6 close = 96.4 < 96.8 -> short breakout condition met
+    day2 = [97.0, 97.1, 97.0, 96.9, 96.8, 96.4]
+    df = _two_days(100.0, day2)
+
+    sig_allowed = generate(df, gap_min_pct=2.0, confirm_minutes=5, allow_short=True)
+    assert sig_allowed["sell"] is True, "sell did not fire with allow_short=True"
+
+    sig_blocked = generate(df, gap_min_pct=2.0, confirm_minutes=5, allow_short=False)
+    assert sig_blocked["sell"] is False, "sell fired with allow_short=False"
+
+
 def test_window_missing_session_open_no_signal():
     """Rolling window that starts mid-day (10:01 ET) must not fabricate an open
     print even when prior-day data is present and the gap shape is obvious."""

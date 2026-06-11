@@ -6,8 +6,9 @@ holds above session VWAP and is the FIRST close above the opening
 `confirm_minutes` high. Stop at VWAP, ~2R target, hard exit 15:55 ET via
 per-signal overrides. Mirrored short side behind allow_short (default off).
 
-Prior session close comes from the 1m window itself (last bar of the most recent
-earlier session) — works identically live and in backtest.
+Prior session close comes from the 1m window itself (last REGULAR-HOURS bar of
+the most recent earlier session; pre/post-market prints are excluded) — works
+identically live and in backtest.
 
 Live-window caveat (same as orb_breakout): the today-session must include the
 real 09:30 ET bar; a rolling window that starts mid-day returns no signal rather
@@ -26,6 +27,16 @@ OPEN = "09:30"
 SESSION_END = "16:00"
 LAST_ENTRY = "15:30"
 HARD_EXIT = "15:55"
+
+
+def _rth(df: pd.DataFrame) -> pd.DataFrame:
+    """Return only regular-trading-hours bars (09:30–16:00 ET inclusive).
+
+    Alpaca's 1-minute feed includes pre-market and post-market bars; calling
+    this helper before extracting the prior-session close ensures we never
+    anchor the gap calculation to an extended-hours print.
+    """
+    return df.between_time(OPEN, SESSION_END)
 
 
 def generate(
@@ -51,7 +62,7 @@ def generate(
     if last_ts.time() > pd.Timestamp(f"2000-01-01 {LAST_ENTRY}").time():
         return no
     today = et[et.index.date == last_ts.date()].between_time(OPEN, SESSION_END)
-    prior = et[et.index.date < last_ts.date()]
+    prior = _rth(et[et.index.date < last_ts.date()])
     if prior.empty or len(today) < confirm_minutes + 1:
         return no
     # anchor: the real 09:30 bar must be present (rolling-window safety)
@@ -78,7 +89,7 @@ def generate(
         return no
 
     stop_pct = abs(close - v) / close * 100.0
-    if stop_pct <= 0.01:                       # too close to VWAP — no edge to risk
+    if stop_pct <= 0.01:  # pct units; price sitting on VWAP -> stop too tight to mean anything
         return no
     bars_to_exit = max(1, int((pd.Timestamp(f"{last_ts.date()} {HARD_EXIT}",
                                             tz=SESSION_TZ) - last_ts).total_seconds() // 60))
