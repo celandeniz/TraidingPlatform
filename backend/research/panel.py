@@ -35,8 +35,13 @@ class PanelResult:
 
 
 def consensus(votes: list, weights: Optional[dict] = None) -> "tuple[str, float]":
-    """Weighted directional score in [-1, 1] -> verdict via +/-0.15 threshold."""
-    weights = weights or {}
+    """Weighted directional score in [-1, 1] -> verdict via +/-0.15 threshold.
+
+    weights must be non-negative; negatives are clamped to 0.
+    A pass vote contributes 0 to the numerator but its weight stays in the
+    denominator — abstentions deliberately dilute conviction.
+    """
+    weights = {k: max(0.0, float(v)) for k, v in (weights or {}).items()}
     total_w = sum(weights.get(v.name, 1.0) for v in votes)
     if total_w <= 0 or not votes:
         return "pass", 0.0
@@ -57,6 +62,8 @@ def price_summary(df: Optional[pd.DataFrame]) -> Optional[dict]:
     rets = close.pct_change().dropna()
     last = float(close.iloc[-1])
     hi, lo = float(close.max()), float(close.min())
+    if hi <= 0 or lo <= 0 or float(close.iloc[0]) <= 0:
+        return None
     return {
         "return_1y_pct": round((last / float(close.iloc[0]) - 1.0) * 100.0, 2),
         "vol_ann_pct": round(float(rets.std()) * (252 ** 0.5) * 100.0, 2),
