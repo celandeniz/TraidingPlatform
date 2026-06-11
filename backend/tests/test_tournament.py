@@ -88,14 +88,14 @@ def test_trade_metrics_annualizes_sharpe():
 def test_trade_metrics_drawdown_is_chronological():
     early = pd.Timestamp("2025-01-05")
     late = pd.Timestamp("2025-06-05")
-    # losses happen FIRST chronologically; passed in REVERSE order
-    trades = [(late, +5.0), (late, +5.0), (early, -3.0), (early, -3.0)]
+    # losses happen FIRST chronologically; passed INTERLEAVED so input-order
+    # compounding gives a different DD than chronological compounding
+    trades = [(late, +10.0), (early, -5.0), (late, +10.0), (early, -5.0)]
     m = _trade_metrics(trades, span_days=252.0)
-    # Chronological order: -3, -3, +5, +5
-    # equity: 1 * 0.97 = 0.97, then * 0.97 = 0.9409 (peak still 1.0)
-    # max DD = (1.0 - 0.9409) / 1.0 = 0.0591 -> 5.91%
-    # Input order (gains first) would give ~0 dd after gains absorb losses
-    assert m["max_drawdown_pct"] == pytest.approx(5.91, abs=0.1)
+    # Chronological order: -5, -5, +10, +10
+    # equity: 1 -> 0.95 -> 0.9025 (max DD 9.75%) -> 0.99275 -> 1.092
+    # Input order (+10, -5, +10, -5) would give only a 5.0% DD — the sort matters.
+    assert m["max_drawdown_pct"] == pytest.approx(9.75, abs=0.1)
 
 
 # Mixed-kind ranking uses a single annualised scale
