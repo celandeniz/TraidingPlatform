@@ -13,6 +13,7 @@ from .donchian_breakout import DonchianBreakoutStrategy
 from .ema_momentum import EmaMomentumStrategy
 from .keltner_breakout import KeltnerBreakoutStrategy
 from .macd_cross import MacdCrossStrategy
+from .gap_go import GapGoStrategy
 from .orb_breakout import OrbBreakoutStrategy
 from .rsi_reversion import RsiReversionStrategy
 from .spike_fade import SpikeFadeStrategy
@@ -29,6 +30,7 @@ SIGNAL_STRATEGIES: dict[str, type] = {
     "keltner_breakout": KeltnerBreakoutStrategy,
     "atr_trend": AtrTrendStrategy,
     "orb_breakout": OrbBreakoutStrategy,
+    "gap_go": GapGoStrategy,
 }
 
 CONFIRMATION_STRATEGIES: dict[str, type] = {
