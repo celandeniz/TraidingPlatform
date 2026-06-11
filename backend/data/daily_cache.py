@@ -62,6 +62,8 @@ def default_fetch(symbol: str, start: date, end: date) -> pd.DataFrame:
         df = _fetch_alpaca(symbol, start, end)
         if not df.empty:
             return df
+    except KeyError:
+        raise  # missing env var is a config error, not a fallback trigger
     except Exception:
         pass
     return _fetch_yfinance(symbol, start, end)
@@ -76,13 +78,16 @@ class DailyBarCache:
         self.max_stale_days = max_stale_days
 
     def _path(self, symbol: str) -> Path:
-        return self.dir / f"{symbol.upper()}.csv"
+        safe = symbol.upper().replace("/", "_").replace("..", "__")
+        return self.dir / f"{safe}.csv"
 
     def _load(self, symbol: str) -> Optional[pd.DataFrame]:
         p = self._path(symbol)
         if not p.exists():
             return None
         df = pd.read_csv(p, index_col=0, parse_dates=True)
+        if df.empty:
+            return None  # empty CSV = cache miss → refetch
         if df.index.tz is None:
             df.index = df.index.tz_localize("UTC")
         return df[COLUMNS]
@@ -91,7 +96,11 @@ class DailyBarCache:
         df.to_csv(self._path(symbol))
 
     def get(self, symbol: str, *, years: int = 5) -> pd.DataFrame:
-        """Cached daily bars, refreshed incrementally when stale."""
+        """Cached daily bars, refreshed incrementally when stale.
+
+        ``years`` controls the initial fetch window only; once the cache file
+        exists, the full cached history is returned (and extended incrementally).
+        """
         today = date.today()
         df = self._load(symbol)
         if df is None or df.empty:
@@ -102,9 +111,10 @@ class DailyBarCache:
         last = df.index.max().date()
         if (today - last).days > self.max_stale_days:
             fresh = self._normalize(self.fetch_fn(symbol, last, today))
-            df = pd.concat([df, fresh])
-            df = df[~df.index.duplicated(keep="last")].sort_index()
-            self._save(symbol, df)
+            if not fresh.empty:
+                df = pd.concat([df, fresh])
+                df = df[~df.index.duplicated(keep="last")].sort_index()
+                self._save(symbol, df)
         return df
 
     @staticmethod
@@ -112,6 +122,10 @@ class DailyBarCache:
         if df.empty:
             return pd.DataFrame(columns=COLUMNS)
         df = df[COLUMNS].sort_index()
+        if df.index.tz is None:
+            df.index = df.index.tz_localize("UTC")
+        elif str(df.index.tz) != "UTC":
+            df.index = df.index.tz_convert("UTC")
         return df[~df.index.duplicated(keep="last")]
 
     def ensure(self, symbols: list[str], *, years: int = 5,
