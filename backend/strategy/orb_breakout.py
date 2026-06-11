@@ -10,6 +10,12 @@ Filters (each auto-skipped when the window lacks history to compute it):
     cumulative volume at the same minute over prior sessions in the window.
   * range width >= min_range_atr x daily ATR(14) resampled from prior sessions.
 
+Live-window limitation: The live runner's rolling 1m window may not include
+prior sessions; both filters auto-skip then (they bind in backtests/tournament
+runs which use full history). The range anchor requires the 09:30 bar to be in
+the window — with a 240-bar window ORB therefore only signals during the morning,
+by design.
+
 Pure logic in generate(df); OrbBreakoutStrategy adapts to SignalStrategy.
 """
 from __future__ import annotations
@@ -20,6 +26,7 @@ from .base import BarContext, StrategySignal
 
 SESSION_TZ = "America/New_York"
 OPEN = "09:30"
+SESSION_END = "16:00"
 LAST_ENTRY = "15:30"   # no fresh entries after this
 HARD_EXIT = "15:55"
 
@@ -38,20 +45,38 @@ def generate(
     min_rel_volume: float = 1.5,
     min_range_atr: float = 0.3,
 ) -> dict:
-    """Evaluate ORB on the LAST closed 1m bar of df. Needs OHLCV, tz-aware index."""
+    """Evaluate ORB on the LAST closed 1m bar of df. Needs OHLCV, tz-aware index.
+
+    The opening range is anchored to the REAL 09:30 ET bar. If the 09:30 bar is
+    not present in the window (e.g. live runner with a 240-bar rolling window that
+    has scrolled past the open) the function returns no-signal immediately.
+    """
     no = {"buy": False, "sell": False}
     if len(df) < range_minutes + 1:
         return no
     et = _et(df)
     last_ts = et.index[-1]
     day = et[et.index.date == last_ts.date()]
-    session = day.between_time(OPEN, "16:00")
+    session = day.between_time(OPEN, SESSION_END)
     if len(session) < range_minutes + 1:
         return no                       # range still forming (or no session data)
     if last_ts.time() > pd.Timestamp(f"2000-01-01 {LAST_ENTRY}").time():
         return no                       # too late in the day to enter
 
-    rng = session.iloc[:range_minutes]
+    # --- anchor: session must start at the real 09:30 bar ---
+    open_time = pd.Timestamp("2000-01-01 09:30").time()
+    if session.index[0].time() != open_time:
+        return no                       # rolling window has scrolled past the open
+
+    # --- select the range by TIMESTAMP, not position ---
+    range_end_ts = pd.Timestamp(f"2000-01-01 09:30") + pd.Timedelta(minutes=range_minutes - 1)
+    range_end_time = range_end_ts.time()   # e.g. 09:44 for range_minutes=15
+    rng = session.between_time(OPEN, str(range_end_time)[:5])
+
+    # Require full range: >= range_minutes bars AND at least one bar strictly after it
+    if len(rng) < range_minutes:
+        return no
+
     range_hi = float(rng["high"].max())
     range_lo = float(rng["low"].min())
     close = float(session["close"].iloc[-1])
@@ -72,7 +97,7 @@ def generate(
         t = last_ts.time()
         prior_cums = []
         for d in prior_days:
-            ds = prior[prior.index.date == d].between_time(OPEN, "16:00")
+            ds = prior[prior.index.date == d].between_time(OPEN, SESSION_END)
             ds = ds[ds.index.time <= t]
             if len(ds):
                 prior_cums.append(float(ds["volume"].sum()))
@@ -112,6 +137,15 @@ def generate(
 
 
 class OrbBreakoutStrategy:
+    """ORB strategy adapter for the SignalStrategy protocol.
+
+    The live runner's rolling 1m window may not include prior sessions; both
+    filters auto-skip then (they bind in backtests/tournament runs which use
+    full history). The range anchor requires the 09:30 bar to be in the
+    window — with a 240-bar window ORB therefore only signals during the
+    morning, by design.
+    """
+
     name = "orb_breakout"
 
     def evaluate(self, ctx: BarContext) -> StrategySignal:
