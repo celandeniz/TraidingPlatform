@@ -11,6 +11,7 @@ The primary UI is now a Next.js + Tailwind + shadcn/ui app in `frontend/`. The o
 - Backtest runner, saved scenario browser, walk-forward validation, and regime-filter symbol selection.
 - S&P 500 + NASDAQ-100 scanner with 5-minute buy-edge scores. Score is estimated edge, not a guarantee.
 - Strategy tournament: 6 US-equity strategies (ORB, gap-and-go, cross-sectional momentum, sector rotation, earnings drift, pairs stat-arb) ranked by out-of-sample Sharpe behind hard risk gates, with a `/tournament` leaderboard.
+- Persona panel: five investor-philosophy AI analysts (value/moat, deep value, GARP, macro, risk chief) deliver a cached per-symbol consensus on the research page; optionally joins the LLM committee as one analyst.
 - Unified news from Alpaca, RSS, and Yahoo, plus catalyst, sentiment, and LLM committee views.
 - Optional LLM providers: Ollama, Claude, Gemini, DeepSeek, and OpenAI-compatible endpoints.
 - Optional automation: scheduler, snapshots, reflection memory, auto-trader cycle, and Perspective live tables.
