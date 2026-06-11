@@ -6,6 +6,8 @@ volume >= vol_mult x its 20-day average, go long; hold `hold_days` with a
 stop_pct stop and no profit target (per-signal overrides, take_profit huge).
 Short side (negative surprise) behind allow_short, default off.
 
+match_days is measured in BUSINESS days (Fri AMC -> Mon reaction = 1).
+
 generate() is pure: earnings_dates are passed in. The tournament wires the
 EarningsCalendar (backend/data/earnings.py) at orchestration time — this is a
 daily-bar tournament/swing strategy, not a live 1m runner strategy, so it is
@@ -13,6 +15,7 @@ deliberately NOT in SIGNAL_STRATEGIES.
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 VOL_AVG_DAYS = 20
@@ -34,9 +37,14 @@ def generate(
     if len(df) < VOL_AVG_DAYS + 2 or not earnings_dates:
         return no
     last = df.index[-1]
-    last_day = pd.Timestamp(last.date())
-    if not any(abs((last_day - pd.Timestamp(e).normalize()).days) <= match_days
-               for e in earnings_dates):
+    last_d = last.date()
+
+    def _bus_diff(e) -> int:
+        ed = pd.Timestamp(e).normalize().date()
+        a, b = min(ed, last_d), max(ed, last_d)
+        return int(np.busday_count(a, b))
+
+    if not any(_bus_diff(e) <= match_days for e in earnings_dates):
         return no
     prev_close = float(df["close"].iloc[-2])
     open_ = float(df["open"].iloc[-1])
