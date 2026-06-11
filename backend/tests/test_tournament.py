@@ -1,12 +1,13 @@
 """Tournament: gates, ranking, error isolation, persistence."""
 import json
+import math
 
 import pandas as pd
 import pytest
 
 from backend.backtest.tournament import (
     GATES, StrategyReport, apply_gates, rank_reports, run_tournament, save_run,
-    load_latest, list_runs,
+    load_latest, list_runs, _trade_metrics,
 )
 
 
@@ -68,3 +69,38 @@ def test_save_and_load_roundtrip(tmp_path):
     latest = load_latest(store_dir=tmp_path)
     assert latest["reports"][0]["name"] == "good"
     assert list_runs(store_dir=tmp_path)[0]["file"] == path.name
+
+
+# ------------------------------------------------------------------ new tests
+# C1: annualised cross-kind Sharpe
+def test_trade_metrics_annualizes_sharpe():
+    # 100 identical-ish winning trades over ~1 year of trading days
+    ts = list(pd.bdate_range("2025-01-02", periods=100))
+    trades = [(t, 0.5 + (i % 3) * 0.1) for i, t in enumerate(ts)]
+    m = _trade_metrics(trades, span_days=252.0)
+    assert m["n_trades"] == 100
+    assert m["per_trade_sharpe"] > 0
+    # trades_per_year = 100 * 252 / 252 = 100  -> annualized = per_trade * sqrt(100) = per_trade * 10
+    assert m["oos_sharpe"] == pytest.approx(m["per_trade_sharpe"] * 10.0, rel=1e-6)
+
+
+# I1: drawdown computed in chronological order, not input order
+def test_trade_metrics_drawdown_is_chronological():
+    early = pd.Timestamp("2025-01-05")
+    late = pd.Timestamp("2025-06-05")
+    # losses happen FIRST chronologically; passed in REVERSE order
+    trades = [(late, +5.0), (late, +5.0), (early, -3.0), (early, -3.0)]
+    m = _trade_metrics(trades, span_days=252.0)
+    # Chronological order: -3, -3, +5, +5
+    # equity: 1 * 0.97 = 0.97, then * 0.97 = 0.9409 (peak still 1.0)
+    # max DD = (1.0 - 0.9409) / 1.0 = 0.0591 -> 5.91%
+    # Input order (gains first) would give ~0 dd after gains absorb losses
+    assert m["max_drawdown_pct"] == pytest.approx(5.91, abs=0.1)
+
+
+# Mixed-kind ranking uses a single annualised scale
+def test_mixed_kind_ranking_is_on_one_scale():
+    port = _report("port", kind="portfolio", sharpe=1.2)
+    trade = _report("trade", kind="trades", sharpe=3.0)
+    ranked = rank_reports([port, trade])
+    assert [r.name for r in ranked][:2] == ["trade", "port"]

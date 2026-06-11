@@ -16,6 +16,23 @@ breakdowns are reported for stability. Parameter search, when added, must go
 through walkforward.py's IS/OOS split.
 
 Results persist as JSON under backend/store/tournament/.
+
+Sharpe scale — cross-kind comparisons
+--------------------------------------
+oos_sharpe is annualized for ALL strategy kinds so that a single leaderboard
+column is meaningful:
+
+* Portfolio strategies: daily-return Sharpe × √252 (standard).
+* Trade strategies ("trades" / "pairs"): per-trade Sharpe × √(trades_per_year)
+  where trades_per_year = n_trades × 252 / span_days.  This is an approximation
+  that assumes roughly independent, evenly-spaced trades; it puts both kinds on
+  the same scale so cross-kind ranking is not systematically biased toward either.
+
+per_trade_sharpe (raw, before annualisation) is also reported in the metrics
+dict for transparency.
+
+max_drawdown_pct for trade strategies is a sequential trade-level drawdown
+(chronological by exit timestamp), not a concurrent-portfolio path DD.
 """
 from __future__ import annotations
 
@@ -155,36 +172,71 @@ def load_latest(*, store_dir: Path | str = DEFAULT_STORE) -> Optional[dict]:
 
 # ------------------------------------------------------------ default runners
 
-def _trade_metrics(trades_pct: list, equity_curve: list) -> dict:
-    """Shared metric block from per-trade % returns (engine-style strategies)."""
+def _trade_metrics(trades: list, span_days: float) -> dict:
+    """Shared metric block for engine-style (trade-level) strategies.
+
+    Parameters
+    ----------
+    trades:
+        List of ``(timestamp, ret_pct)`` tuples where *timestamp* is the trade
+        exit time (``pd.Timestamp`` or ``None``).  Trades are sorted
+        chronologically before metrics are computed; ``None`` timestamps are
+        treated as equal (stable sort preserves their relative input order).
+    span_days:
+        Data span in **trading** days (float, > 0).  Used to annualise the
+        per-trade Sharpe: ``trades_per_year = n_trades × 252 / span_days``.
+    """
+    import math
     from .stats import significance
 
-    if not trades_pct:
-        return {"oos_sharpe": 0.0, "n_trades": 0, "profit_factor": 0.0,
-                "max_drawdown_pct": 0.0, "total_return_pct": 0.0,
-                "significant": False}
+    if not trades:
+        return {"oos_sharpe": 0.0, "per_trade_sharpe": 0.0, "n_trades": 0,
+                "profit_factor": 0.0, "max_drawdown_pct": 0.0,
+                "total_return_pct": 0.0, "significant": False}
+
+    # Sort chronologically; None timestamps keep their relative input order
+    sorted_trades = sorted(trades, key=lambda t: (t[0] is None, t[0]))
+    trades_pct = [r for _, r in sorted_trades]
+
     wins = sum(r for r in trades_pct if r > 0)
     losses = -sum(r for r in trades_pct if r < 0)
     pf = wins / losses if losses > 0 else 999.0
-    mean = sum(trades_pct) / len(trades_pct)
-    var = sum((r - mean) ** 2 for r in trades_pct) / len(trades_pct)
-    sharpe = mean / (var ** 0.5) if var > 0 else 0.0
-    curve = list(equity_curve)
-    if not curve:
-        eq = 1.0
-        for r in trades_pct:
-            eq *= (1 + r / 100.0)
-            curve.append(eq)
+
+    n = len(trades_pct)
+    mean = sum(trades_pct) / n
+    var = sum((r - mean) ** 2 for r in trades_pct) / n
+    per_trade_sharpe = mean / (var ** 0.5) if var > 0 else 0.0
+
+    # Annualise: scale per-trade Sharpe by sqrt(trades per year).
+    # Round per_trade_sharpe first so the stored value is consistent with
+    # the oos_sharpe derivation (avoids sub-ULP discrepancies in tests).
+    per_trade_sharpe = round(per_trade_sharpe, 6)
+    effective_span = max(span_days, 1.0)
+    trades_per_year = n * 252.0 / effective_span
+    oos_sharpe = per_trade_sharpe * math.sqrt(trades_per_year)
+
+    # Max drawdown over chronological equity curve (trade-level, sequential)
+    eq = 1.0
+    curve = []
+    for r in trades_pct:
+        eq *= (1 + r / 100.0)
+        curve.append(eq)
     peak, max_dd = 1.0, 0.0
     for e in curve:
         peak = max(peak, e)
         max_dd = max(max_dd, (peak - e) / peak)
+
     sg = significance(trades_pct)
-    return {"oos_sharpe": round(sharpe, 3), "n_trades": len(trades_pct),
-            "profit_factor": round(min(pf, 999.0), 3),
-            "max_drawdown_pct": round(max_dd * 100.0, 3),
-            "total_return_pct": round((curve[-1] - 1.0) * 100.0, 3) if curve else 0.0,
-            "significant": bool(sg.significant), "p_value": sg.p_value}
+    return {
+        "oos_sharpe": round(oos_sharpe, 3),
+        "per_trade_sharpe": round(per_trade_sharpe, 6),
+        "n_trades": n,
+        "profit_factor": round(min(pf, 999.0), 3),
+        "max_drawdown_pct": round(max_dd * 100.0, 3),
+        "total_return_pct": round((curve[-1] - 1.0) * 100.0, 3),
+        "significant": bool(sg.significant),
+        "p_value": sg.p_value,
+    }
 
 
 def _pf_from_daily(daily: list) -> float:
@@ -225,21 +277,26 @@ def default_runners(config: dict) -> dict:
         def runner(cfg):
             provider = _provider()
             from .engine import CostModel, ExitParams, run_backtest
-            all_trades = []
+            all_trades = []   # list of (exit_timestamp, ret_pct)
             n_sym = 0
+            max_bars = 0
             for sym in intraday_symbols:
                 df = provider.get_recent_bars(sym, "1m", lookback_1m)
                 if df is None or len(df) < 500:
                     continue
                 n_sym += 1
+                max_bars = max(max_bars, len(df))
                 res = run_backtest(
                     df, lambda w: generate(w, **params),
                     exits=ExitParams(take_profit_pct=2.0, stop_loss_pct=1.0,
                                      allow_short=True),
                     costs=CostModel(1.0, 2.0), warmup=60, scenario=f"{name}:{sym}")
-                all_trades.extend(t.ret_pct for t in res.trades)
+                all_trades.extend(
+                    (df.index[t.exit_idx], t.ret_pct) for t in res.trades)
+            # 1-minute bars: 390 bars per session ≈ 1 trading day
+            span_days = max(1.0, max_bars / 390.0)
             rep = StrategyReport(name=name, kind="trades",
-                                 metrics=_trade_metrics(all_trades, []))
+                                 metrics=_trade_metrics(all_trades, span_days))
             rep.metrics["symbols_tested"] = n_sym
             return rep
         return runner
@@ -276,14 +333,16 @@ def default_runners(config: dict) -> dict:
         cal = EarningsCalendar(store / "earnings_cache")
         params = cfg.get("earnings_drift", {})
         frames, rep = _daily_frames(daily_symbols)
-        all_trades = []
+        all_trades = []   # list of (exit_timestamp, ret_pct)
         unavailable = 0
+        max_bars = 0
         for sym, df in frames.items():
             try:
                 dates = cal.get_dates(sym)
             except EarningsUnavailable:
                 unavailable += 1
                 continue
+            max_bars = max(max_bars, len(df))
             res = run_backtest(
                 df, lambda w, _d=dates: gen(w, earnings_dates=_d,
                                   gap_min_pct=params.get("gap_min_pct", 5.0),
@@ -293,12 +352,15 @@ def default_runners(config: dict) -> dict:
                 exits=ExitParams(take_profit_pct=1000.0, stop_loss_pct=10.0,
                                  allow_short=False),
                 costs=CostModel(1.0, 2.0), warmup=25, scenario=f"pead:{sym}")
-            all_trades.extend(t.ret_pct for t in res.trades)
+            all_trades.extend(
+                (df.index[t.exit_idx], t.ret_pct) for t in res.trades)
         if frames and unavailable == len(frames):
             return StrategyReport(name="earnings_drift", kind="trades",
                                   error="earnings data unavailable")
+        # Daily bars: each bar is one trading day
+        span_days = max(1.0, float(max_bars))
         r = StrategyReport(name="earnings_drift", kind="trades",
-                           metrics=_trade_metrics(all_trades, []))
+                           metrics=_trade_metrics(all_trades, span_days))
         r.metrics["earnings_unavailable_symbols"] = unavailable
         r.metrics["excluded_symbols"] = rep.excluded
         return r
@@ -314,8 +376,15 @@ def default_runners(config: dict) -> dict:
         res = run_pairs_strategy(frames, **kw)
         if res["error"]:
             return StrategyReport(name="pairs_statarb", kind="pairs", error=res["error"])
+        # Pairs trades don't carry per-symbol frame timestamps; use None so sort
+        # is stable (preserves strategy's own output order).
+        # span_days ≈ OOS test-slice length: full frame minus training fraction.
+        train_frac = p.get("train_frac", 0.6)
+        min_len = min(len(f) for f in frames.values()) if frames else 1
+        span_days = max(1.0, min_len * (1.0 - train_frac))
+        all_trades = [(None, t["ret_pct"]) for t in res["trades"]]
         r = StrategyReport(name="pairs_statarb", kind="pairs",
-                           metrics=_trade_metrics([t["ret_pct"] for t in res["trades"]], []))
+                           metrics=_trade_metrics(all_trades, span_days))
         r.metrics["pairs"] = res["pairs"]
         r.metrics["excluded_symbols"] = rep.excluded
         return r
