@@ -149,6 +149,51 @@ def test_rel_volume_filter_rejects_low_volume_breakout():
     )
 
 
+def test_atr_filter_ignores_extended_hours_bars():
+    """Extended-hours bars must NOT inflate daily ATR used by the ORB filter.
+
+    Construction (discriminating — fails on unfixed code):
+      Prior days: tiny RTH ranges (closes flat at 100.0 → RTH ATR ≈ 0.10).
+      Each prior day also has post-market bars 17:00-17:30 with extreme
+      highs/lows (close ± 5.0) that would inflate ATR to ~10 if included.
+      Today: opening range ≈ 0.20 (range_hi 100.05 → breakout bar closes 100.30).
+
+    With RTH-only ATR (≈ 0.10):
+      0.20 >= 0.3 × 0.10 = 0.03  →  filter passes  →  buy fires.
+    With contaminated ATR (≈ 10):
+      0.20 <  0.3 × 10.0 = 3.00  →  filter rejects  →  no signal.
+
+    The test asserts buy fires, proving extended-hours bars are excluded.
+    """
+    prior_days = [f"2026-05-{d:02d}" for d in range(5, 26)]  # 21 sessions
+
+    prior_frames = []
+    for d in prior_days:
+        # RTH: flat bars → high = 100.05, low = 99.95, ATR ≈ 0.10
+        rth = _bars("09:30", [100.0] * 30, d, volume=50_000.0)
+        # Post-market: extreme bars that inflate range if included
+        pm_closes = [100.0] * 31
+        pm = _bars("17:00", pm_closes, d, volume=1_000.0)
+        # Manually set extreme high/low on post-market frame
+        pm = pm.copy()
+        pm["high"] = pm["high"] + 5.0
+        pm["low"] = pm["low"] - 5.0
+        prior_frames.extend([rth, pm])
+
+    today = "2026-06-08"
+    # Opening range: 15 flat bars at 100.0 → range_hi=100.05, range_lo=99.95
+    # range width = 0.10 (wick-to-wick); breakout bar closes 100.30 > range_hi
+    today_closes = [100.0] * 15 + [100.30]
+    today_session = _bars("09:30", today_closes, today, volume=200_000.0)
+
+    df = _concat(*prior_frames, today_session)
+    sig = generate(df, range_minutes=15, min_rel_volume=0.0, min_range_atr=0.3)
+    assert sig["buy"] is True, (
+        "Extended-hours bars must NOT inflate ATR; with RTH-only ATR the "
+        "opening range passes the filter and a buy signal must fire"
+    )
+
+
 def test_atr_filter_rejects_narrow_range():
     """ATR filter: narrow opening range → no signal.
 

@@ -88,7 +88,7 @@ def generate(
     if not (buy or sell):
         return no
 
-    prior = et[et.index.date < last_ts.date()]
+    prior = et[et.index.date < last_ts.date()].between_time(OPEN, SESSION_END)
     prior_days = sorted(set(prior.index.date))
 
     # --- relative-volume filter (needs >= 3 prior sessions) ---
@@ -97,7 +97,7 @@ def generate(
         t = last_ts.time()
         prior_cums = []
         for d in prior_days:
-            ds = prior[prior.index.date == d].between_time(OPEN, SESSION_END)
+            ds = prior[prior.index.date == d]
             ds = ds[ds.index.time <= t]
             if len(ds):
                 prior_cums.append(float(ds["volume"].sum()))
