@@ -145,8 +145,10 @@ windows** — never on test data.
 ### UI — `frontend/app/tournament/`
 
 Leaderboard table (rank, strategy, OOS Sharpe, return, max DD, PF, trades, gate
-badges), equity-curve comparison chart, per-strategy drill-down into walk-forward
-windows. DynamicsOps theme, shadcn/ui components, consistent with existing pages.
+badges) with an inline equity sparkline per strategy. Per-year window detail ships
+in the run JSON; a richer drill-down/comparison chart is deferred to the Phase 3
+UX-polish phase. DynamicsOps theme, shadcn/ui components, consistent with
+existing pages.
 
 ## Error Handling
 
