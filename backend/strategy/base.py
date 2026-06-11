@@ -61,3 +61,24 @@ class ConfirmationStrategy(Protocol):
     name: str
 
     def confirm(self, side: Side, ctx: BarContext) -> Confirmation: ...
+
+
+@dataclass
+class UniverseContext:
+    """Cross-sectional view handed to a PortfolioStrategy at one rebalance date.
+
+    frames hold DAILY bars per symbol, truncated to <= date (engine guarantees
+    no future rows — same anti-lookahead contract as BarContext)."""
+
+    date: pd.Timestamp
+    frames: dict  # symbol -> daily OHLCV DataFrame, index <= date
+    config: dict = field(default_factory=dict)
+
+
+class PortfolioStrategy(Protocol):
+    """Returns target weights {symbol: weight}; weights sum <= 1.0, remainder is
+    cash. Empty dict = 100% cash. Never touches a broker."""
+
+    name: str
+
+    def rebalance(self, ctx: UniverseContext) -> dict: ...
