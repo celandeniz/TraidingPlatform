@@ -118,6 +118,15 @@ rsi_reversion:
   overbought: 70
 vwap_reversion:
   band_pct: 1.0
+
+# Intraday US-equity strategies (tournament candidates; enable in strategies.signal
+# only after they pass tournament gates)
+orb_breakout:
+  range_minutes: 15
+  risk_reward: 2.0
+  min_rel_volume: 1.5
+  min_range_atr: 0.3
+
 volume:
   window: 20
   mult: 1.5
