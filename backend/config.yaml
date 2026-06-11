@@ -149,6 +149,17 @@ earnings_drift:
   stop_pct: 10.0
   allow_short: false
 
+pairs_statarb:
+  train_frac: 0.6
+  corr_min: 0.8
+  pval_max: 0.05
+  top_n: 10
+  z_entry: 2.0
+  z_exit: 0.0
+  z_stop: 3.5
+  max_days: 30
+  hedge_window: 60
+
 volume:
   window: 20
   mult: 1.5

@@ -9,6 +9,7 @@ uvicorn[standard]>=0.30
 anthropic>=0.40
 ccxt>=4.5
 requests>=2.31
+statsmodels>=0.14   # pairs stat-arb: Engle-Granger cointegration test
 
 # --- Optional (Phase A: OpenAlice merge). Install when the feature is enabled; ---
 # --- core runner/backtest/tests do not import these unless the flag is on.     ---
