@@ -1057,9 +1057,9 @@ def api_tournament_run(background_tasks: BackgroundTasks):
     """Kick off a tournament in the background. Idempotent while running."""
     if _tournament_state["running"]:
         return {"ok": False, "running": True, "progress": _tournament_state["progress"]}
+    _tournament_state.update(running=True, progress="starting", error="")  # claim before scheduling
 
     def _job():
-        _tournament_state.update(running=True, progress="starting", error="")
         try:
             cfg = _config
             run = run_tournament(
