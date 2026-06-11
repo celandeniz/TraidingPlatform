@@ -142,8 +142,8 @@ def run_backtest(
             # Stop / take-profit are checked against this bar's range. If both the
             # stop and TP are inside the bar, assume the STOP hit first (conservative).
             if side == "long":
-                stop_px = entry * (1 - exits.stop_loss_pct / 100.0)
-                tp_px = entry * (1 + exits.take_profit_pct / 100.0)
+                stop_px = entry * (1 - pos["stop_loss_pct"] / 100.0)
+                tp_px = entry * (1 + pos["take_profit_pct"] / 100.0)
                 if low[i] <= stop_px:
                     exit_px, reason = stop_px, "stop_loss"
                 elif high[i] >= tp_px:
@@ -153,8 +153,8 @@ def run_backtest(
                     if low[i] <= trail:
                         exit_px, reason = trail, "trailing_stop"
             else:  # short
-                stop_px = entry * (1 + exits.stop_loss_pct / 100.0)
-                tp_px = entry * (1 - exits.take_profit_pct / 100.0)
+                stop_px = entry * (1 + pos["stop_loss_pct"] / 100.0)
+                tp_px = entry * (1 - pos["take_profit_pct"] / 100.0)
                 if high[i] >= stop_px:
                     exit_px, reason = stop_px, "stop_loss"
                 elif low[i] <= tp_px:
@@ -165,7 +165,7 @@ def run_backtest(
                         exit_px, reason = trail, "trailing_stop"
 
             held = i - pos["entry_idx"]
-            if exit_px is None and exits.time_stop_bars is not None and held >= exits.time_stop_bars:
+            if exit_px is None and pos["time_stop_bars"] is not None and held >= pos["time_stop_bars"]:
                 exit_px, reason = close[i], "time_stop"  # exit at this close
 
             if exit_px is not None:
@@ -195,7 +195,11 @@ def run_backtest(
                 raw_entry = open_[i + 1]
                 entry_px = _apply_cost(raw_entry, side_is_buy=(want == "long"), costs=costs)
                 pos = {"side": want, "entry_idx": i + 1, "entry_px": entry_px,
-                       "high_water": entry_px}
+                       "high_water": entry_px,
+                       # per-signal exit overrides; fall back to global ExitParams
+                       "stop_loss_pct": sig.get("stop_loss_pct", exits.stop_loss_pct),
+                       "take_profit_pct": sig.get("take_profit_pct", exits.take_profit_pct),
+                       "time_stop_bars": sig.get("time_stop_bars", exits.time_stop_bars)}
                 i += 1
                 continue
         i += 1
