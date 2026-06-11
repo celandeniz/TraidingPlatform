@@ -10,6 +10,7 @@ The primary UI is now a Next.js + Tailwind + shadcn/ui app in `frontend/`. The o
 - OMS order ledger with stage, commit, push, fills, and transaction-cost analytics.
 - Backtest runner, saved scenario browser, walk-forward validation, and regime-filter symbol selection.
 - S&P 500 + NASDAQ-100 scanner with 5-minute buy-edge scores. Score is estimated edge, not a guarantee.
+- Strategy tournament: 6 US-equity strategies (ORB, gap-and-go, cross-sectional momentum, sector rotation, earnings drift, pairs stat-arb) ranked by out-of-sample Sharpe behind hard risk gates, with a `/tournament` leaderboard.
 - Unified news from Alpaca, RSS, and Yahoo, plus catalyst, sentiment, and LLM committee views.
 - Optional LLM providers: Ollama, Claude, Gemini, DeepSeek, and OpenAI-compatible endpoints.
 - Optional automation: scheduler, snapshots, reflection memory, auto-trader cycle, and Perspective live tables.
@@ -52,6 +53,7 @@ Frontend routes:
 - `/live` Live / Signals
 - `/positions` positions and OMS orders
 - `/scanner` estimated-edge scanner
+- `/tournament` strategy tournament leaderboard
 - `/setup` setup and profiles
 
 FastAPI legacy dashboard routes:
