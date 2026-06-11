@@ -4,11 +4,11 @@ import { Play, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { getTournamentLatest, runTournament } from "@/lib/api";
-import type { TournamentLatest, TournamentReport } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getTournamentLatest, runTournament } from "@/lib/api";
+import type { TournamentLatest, TournamentReport } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function Sparkline({ curve }: { curve: [string, number][] }) {
@@ -148,7 +148,7 @@ export function TournamentClient({ initial }: { initial: TournamentLatest | null
                   <TableHead className="text-right">Return %</TableHead>
                   <TableHead className="text-right">Max DD %</TableHead>
                   <TableHead className="text-right">PF</TableHead>
-                  <TableHead className="text-right">Trades</TableHead>
+                  <TableHead className="text-right">Trades / Rebal.</TableHead>
                   <TableHead>Equity</TableHead>
                   <TableHead>Gates</TableHead>
                 </TableRow>
