@@ -141,3 +141,20 @@ export type TournamentRuns = {
   runs: { file: string; started_at: string; n_strategies: number }[];
   status?: TournamentStatus;
 };
+
+export type PanelVote = {
+  name: string;
+  side: "long" | "short" | "pass";
+  confidence: number;
+  rationale: string;
+};
+
+export type PanelResult = {
+  symbol: string;
+  verdict: "long" | "short" | "pass";
+  score: number;
+  votes: PanelVote[];
+  fundamentals_available: boolean;
+  generated_at: string;
+  cached: boolean;
+};

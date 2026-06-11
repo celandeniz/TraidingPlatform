@@ -1,5 +1,6 @@
 import type {
   OrdersResponse,
+  PanelResult,
   PositionsResponse,
   ProfilesResponse,
   ScanResponse,
@@ -80,4 +81,10 @@ export function runTournament() {
   return api<{ ok: boolean; running: boolean }>("/api/tournament/run", {
     method: "POST",
   });
+}
+
+export function getPanel(symbol: string, refresh = false) {
+  return api<PanelResult>(
+    `/api/panel/${encodeURIComponent(symbol)}${refresh ? "?refresh=true" : ""}`,
+  );
 }
