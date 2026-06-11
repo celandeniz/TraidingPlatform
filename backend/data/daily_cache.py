@@ -26,14 +26,35 @@ class CoverageReport:
     excluded: dict = field(default_factory=dict)   # symbol -> reason
 
 
+def _alpaca_creds() -> "tuple[str, str]":
+    """Resolve Alpaca credentials the same way the rest of the app does:
+    process env first (both APCA_* and ALPACA_* spellings), then the
+    pydantic Settings object (which reads .env). Raises KeyError when no
+    credentials exist anywhere — default_fetch treats that as "try yfinance"."""
+    key = os.environ.get("APCA_API_KEY_ID") or os.environ.get("ALPACA_API_KEY")
+    secret = (os.environ.get("APCA_API_SECRET_KEY")
+              or os.environ.get("ALPACA_API_SECRET")
+              or os.environ.get("ALPACA_SECRET_KEY"))
+    if not (key and secret):
+        try:
+            from backend.settings import get_settings
+            s = get_settings()
+            key = key or s.alpaca_api_key
+            secret = secret or s.alpaca_api_secret
+        except Exception:  # noqa: BLE001 — settings optional in bare contexts
+            pass
+    if not (key and secret):
+        raise KeyError("Alpaca credentials not found (ALPACA_API_KEY / ALPACA_API_SECRET)")
+    return key, secret
+
+
 def _fetch_alpaca(symbol: str, start: date, end: date) -> pd.DataFrame:
+    key, secret = _alpaca_creds()
     from alpaca.data.historical import StockHistoricalDataClient
     from alpaca.data.requests import StockBarsRequest
     from alpaca.data.timeframe import TimeFrame
 
-    client = StockHistoricalDataClient(
-        os.environ["APCA_API_KEY_ID"], os.environ["APCA_API_SECRET_KEY"]
-    )
+    client = StockHistoricalDataClient(key, secret)
     req = StockBarsRequest(symbol_or_symbols=symbol, timeframe=TimeFrame.Day,
                            start=start, end=end)
     bars = client.get_stock_bars(req).df
@@ -57,14 +78,17 @@ def _fetch_yfinance(symbol: str, start: date, end: date) -> pd.DataFrame:
 
 
 def default_fetch(symbol: str, start: date, end: date) -> pd.DataFrame:
-    """Alpaca primary, yfinance fallback (spec: Error Handling / data sources)."""
+    """Alpaca primary, yfinance fallback (spec: Error Handling / data sources).
+
+    Missing Alpaca credentials fall through to yfinance — verified live: the
+    earlier raise-on-KeyError behavior made every keyless daily fetch fail
+    instead of using the documented fallback. If yfinance is also missing,
+    its ImportError propagates and the caller reports the symbol as excluded."""
     try:
         df = _fetch_alpaca(symbol, start, end)
         if not df.empty:
             return df
-    except KeyError:
-        raise  # missing env var is a config error, not a fallback trigger
-    except Exception:
+    except Exception:  # noqa: BLE001 — fall back to yfinance
         pass
     return _fetch_yfinance(symbol, start, end)
 

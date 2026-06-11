@@ -135,3 +135,16 @@ def test_eastern_index_converted_to_utc(tmp_path):
     cache = DailyBarCache(tmp_path, fetch_fn=fetch)
     df = cache.get("GS")
     assert str(df.index.tz) == "UTC", f"expected UTC, got {df.index.tz}"
+
+
+def test_alpaca_creds_resolve_from_alpaca_env_names(monkeypatch):
+    """Live-run regression: .env uses ALPACA_API_KEY/ALPACA_API_SECRET, not the
+    alpaca-py APCA_* names — both spellings must resolve."""
+    from backend.data.daily_cache import _alpaca_creds
+
+    for name in ("APCA_API_KEY_ID", "APCA_API_SECRET_KEY",
+                 "ALPACA_API_KEY", "ALPACA_API_SECRET", "ALPACA_SECRET_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("ALPACA_API_KEY", "k123")
+    monkeypatch.setenv("ALPACA_API_SECRET", "s456")
+    assert _alpaca_creds() == ("k123", "s456")
