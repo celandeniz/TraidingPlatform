@@ -24,3 +24,8 @@ dashboard*.png
 # local screenshot artefacts
 *.png
 .playwright-mcp/
+
+# runtime data caches (tournament / daily bars / earnings)
+backend/store/daily_cache/
+backend/store/earnings_cache/
+backend/store/tournament/
