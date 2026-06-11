@@ -9,6 +9,11 @@ the same window. Enter long-spread at z <= -z_entry (buy A, sell B*beta), short-
 spread at z >= +z_entry; exit at z crossing z_exit; stop at |z| >= z_stop or
 max_days. Both legs dollar-neutral; cost_bps charged per leg per side.
 Anti-lookahead: signals use data through day t; fills at day t+1's open.
+
+Notes
+-----
+max_drawdown_pct is computed on the trade-exit equity curve only — intra-trade
+adverse excursion is not marked, so true path drawdown can be worse.
 """
 from __future__ import annotations
 
@@ -36,23 +41,39 @@ def _half_life(spread: pd.Series) -> float:
 
 
 def find_pairs(frames: dict, *, corr_min: float = 0.8, pval_max: float = 0.05,
-               top_n: int = 10) -> list[PairSpec]:
+               top_n: int = 10, max_tests: int = 2000) -> list[PairSpec]:
+    """Find cointegrated pairs in *frames*.
+
+    max_tests bounds the number of Engle-Granger tests so a large universe
+    cannot turn selection into an hours-long loop; candidates are the most-
+    correlated pairs (sorted descending by correlation, tie-broken by symbol
+    names so results are deterministic).
+    """
     from statsmodels.tsa.stattools import coint
 
     closes = pd.DataFrame({s: f["close"] for s, f in frames.items()}).dropna()
     syms = list(closes.columns)
     corr = closes.corr()
-    out: list[PairSpec] = []
+
+    # Collect all candidates that pass corr_min, sorted by (-corr, sym_a, sym_b)
+    # for determinism, then truncate to max_tests before running coint.
+    candidates: list[tuple[float, str, str]] = []
     for i, a in enumerate(syms):
         for b in syms[i + 1:]:
-            if corr.loc[a, b] < corr_min:
-                continue
-            _, pval, _ = coint(closes[a], closes[b])
-            if pval >= pval_max:
-                continue
-            beta = float(np.polyfit(closes[b], closes[a], 1)[0])
-            out.append(PairSpec(a, b, float(pval),
-                                _half_life(closes[a] - beta * closes[b])))
+            c = corr.loc[a, b]
+            if c >= corr_min:
+                candidates.append((-c, a, b))   # negate so highest corr sorts first
+    candidates.sort()                            # (-corr, a, b) — deterministic
+    candidates = candidates[:max_tests]
+
+    out: list[PairSpec] = []
+    for neg_c, a, b in candidates:
+        _, pval, _ = coint(closes[a], closes[b])
+        if pval >= pval_max:
+            continue
+        beta = float(np.polyfit(closes[b], closes[a], 1)[0])
+        out.append(PairSpec(a, b, float(pval),
+                            _half_life(closes[a] - beta * closes[b])))
     out.sort(key=lambda p: p.pvalue)
     return out[:top_n]
 
@@ -83,10 +104,14 @@ def run_pairs_backtest(df_a: pd.DataFrame, df_b: pd.DataFrame, *,
         z = (float(spread.iloc[-1]) - mu) / sd
 
         if pos is not None:
-            held = t - pos["i0"]
+            # bars_held: entry fill was at i0 (= prev t+1), exit fill will be
+            # at t+1; so the number of bars between fills is (t+1) - i0.
+            held = t + 1 - pos["i0"]
             crossed = (pos["side"] == "long" and z >= z_exit) or \
                       (pos["side"] == "short" and z <= z_exit)
             stopped = abs(z) >= z_stop or held >= max_days
+            # z_exit takes precedence when both signals fire on the same bar;
+            # the deliberate ordering is: crossed first, then z_stop, then time_stop.
             if crossed or stopped:
                 # exit fills at NEXT open
                 xa, xb = float(oa.iloc[t + 1]), float(ob.iloc[t + 1])
@@ -110,6 +135,23 @@ def run_pairs_backtest(df_a: pd.DataFrame, df_b: pd.DataFrame, *,
             beta_w = abs(beta) * pb / pa if pa > 0 else 1.0
             pos = {"side": "long" if z <= -z_entry else "short",
                    "i0": t + 1, "pa": pa, "pb": pb, "beta_w": beta_w}
+
+    # Force-liquidate any position still open at end of data (eod_close).
+    # Avoids a silent survivorship bias where the last open trade is simply dropped.
+    if pos is not None:
+        xa, xb = float(a.iloc[-1]), float(b.iloc[-1])
+        sgn = 1.0 if pos["side"] == "long" else -1.0
+        ret_a = sgn * (xa / pos["pa"] - 1.0)
+        ret_b = -sgn * pos["beta_w"] * (xb / pos["pb"] - 1.0)
+        ret = (ret_a + ret_b) / (1.0 + pos["beta_w"]) - 4 * cost
+        equity *= (1.0 + ret)
+        curve.append(equity)
+        held = (n - 1) - pos["i0"]    # last index minus entry fill index
+        trades.append({"side": pos["side"], "entry_idx": pos["i0"],
+                       "exit_idx": n - 1, "bars_held": held,
+                       "reason": "eod_close",
+                       "ret_pct": ret * 100.0})
+        pos = None
 
     peak, max_dd = 1.0, 0.0
     for e in curve:

@@ -154,11 +154,13 @@ pairs_statarb:
   corr_min: 0.8
   pval_max: 0.05
   top_n: 10
+  max_tests: 2000
   z_entry: 2.0
   z_exit: 0.0
   z_stop: 3.5
   max_days: 30
   hedge_window: 60
+  cost_bps: 3.0
 
 volume:
   window: 20

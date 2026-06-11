@@ -13,7 +13,8 @@ from backend.backtest.pairs_engine import find_pairs, run_pairs_backtest
 
 def run_pairs_strategy(frames: dict, *, train_frac: float = 0.6,
                        corr_min: float = 0.8, pval_max: float = 0.05,
-                       top_n: int = 10, z_entry: float = 2.0, z_exit: float = 0.0,
+                       top_n: int = 10, max_tests: int = 2000,
+                       z_entry: float = 2.0, z_exit: float = 0.0,
                        z_stop: float = 3.5, max_days: int = 30,
                        hedge_window: int = 60, cost_bps: float = 3.0) -> dict:
     if not frames:
@@ -24,7 +25,8 @@ def run_pairs_strategy(frames: dict, *, train_frac: float = 0.6,
         return {"n_trades": 0, "trades": [], "pairs": [], "error": "insufficient data"}
 
     train = {s: f.iloc[:cut] for s, f in frames.items()}
-    pairs = find_pairs(train, corr_min=corr_min, pval_max=pval_max, top_n=top_n)
+    pairs = find_pairs(train, corr_min=corr_min, pval_max=pval_max, top_n=top_n,
+                       max_tests=max_tests)
     if not pairs:
         return {"n_trades": 0, "trades": [], "pairs": [], "error": ""}
 
