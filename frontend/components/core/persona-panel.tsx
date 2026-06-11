@@ -54,7 +54,7 @@ export function PersonaPanel() {
             onChange={(e) => setSymbol(e.target.value)}
             placeholder="Symbol, e.g. AAPL"
             className="h-10 w-40 rounded-md border bg-background px-3 text-sm"
-            onKeyDown={(e) => e.key === "Enter" && load()}
+            onKeyDown={(e) => e.key === "Enter" && !busy && !!symbol.trim() && load()}
           />
           <Button onClick={() => load()} disabled={busy || !symbol.trim()}>
             {busy ? "Asking the panel…" : "Run panel"}
