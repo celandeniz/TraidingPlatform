@@ -77,7 +77,12 @@ class UniverseContext:
 
 class PortfolioStrategy(Protocol):
     """Returns target weights {symbol: weight}; weights sum <= 1.0, remainder is
-    cash. Empty dict = 100% cash. Never touches a broker."""
+    cash. Empty dict = 100% cash. Never touches a broker.
+
+    The engine enforces a long-only, fully-invested cap on returned weights:
+      * Negative weights are clamped to 0.0.
+      * If the sum exceeds 1.0, all weights are scaled proportionally to 1.0.
+    Strategies need not normalise their output themselves."""
 
     name: str
 
