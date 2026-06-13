@@ -355,6 +355,11 @@ vibe_trading:
     strategy: true                # NL->strategy (advisory/exploratory; not auto-promoted)
     execution: false              # order proposals routed through our OMS (opt-in)
 
+# Conversational agent gateway: NL question -> tool dispatch -> NL answer over the
+# read-only MCP Toolset (+ optional Vibe research). Never places trades.
+agent_gateway:
+  enabled: true
+
 # AI decision & research layer (Phase 2). See spec phase2-ai-decision.
 research:
   enabled: true

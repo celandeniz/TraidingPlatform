@@ -666,6 +666,28 @@ async def api_vibe_research(symbol: str) -> dict:
     return res.as_dict()
 
 
+class GatewayBody(BaseModel):
+    message: str  # natural-language question for the read-only agent gateway
+
+
+@app.post("/api/agent/gateway")
+async def api_agent_gateway(body: GatewayBody) -> dict:
+    """Conversational, READ-ONLY gateway: NL question -> tool dispatch -> NL answer.
+    Never places trades. Degrades to keyword routing when no LLM is configured.
+    """
+    if not _config.get("agent_gateway", {}).get("enabled", True):
+        return {"ok": False, "source": "agent_gateway", "detail": "agent gateway disabled"}
+    import asyncio as _a
+
+    from ..agent.gateway import AgentGateway
+    from ..mcp.tools import Toolset
+
+    toolset = Toolset(_executor, oms=_oms, market_data=None, config=_config)
+    gw = AgentGateway(toolset, llm=_llm, vibe=_vibe)
+    reply = await _a.to_thread(gw.route, body.message)
+    return reply.as_dict()
+
+
 @app.post("/api/synthesis")
 async def api_synthesis(body: SynthesisBody) -> dict:
     """In-house NL->strategy compiler: best-of-N LLM-generated Python strategies,
