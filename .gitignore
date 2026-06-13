@@ -1,6 +1,7 @@
 # secrets
 .env
 backend/.env
+deploy/vibe-trading/agent.env
 
 # logs / data
 logs/

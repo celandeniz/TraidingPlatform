@@ -1,0 +1,68 @@
+# HKUDS/Vibe-Trading as a sidecar for TraidingPlatform.
+#
+# Vibe-Trading needs Python 3.11+, but our backend is Python 3.9, so Vibe runs
+# fully containerized — NOTHING from Vibe is installed into our backend env. Our
+# backend (FastAPI on :8765) talks to this sidecar over HTTP on :8899.
+#
+# Setup (run from the repo root):
+#   1. Clone Vibe-Trading next to this repo (default expected location):
+#        git clone https://github.com/HKUDS/Vibe-Trading.git ../Vibe-Trading
+#      ...or set VIBE_TRADING_SRC to wherever you cloned it.
+#   2. cp deploy/vibe-trading/agent.env.example deploy/vibe-trading/agent.env
+#      then edit agent.env: set ONE LLM provider + key. Add NO broker keys —
+#      execution is routed back through our OMS, Vibe never trades directly.
+#   3. make vibe-up   (or: docker compose -f deploy/vibe-trading/docker-compose.yml up -d)
+#
+# Pin the source: check out a known-good tag/commit in ../Vibe-Trading and record
+# it in this directory's README so upgrades are deliberate (see Risks in the plan).
+
+name: vibe-trading
+
+services:
+  vibe-trading:
+    # Build from a locally cloned Vibe-Trading checkout (no git submodule).
+    build:
+      context: ${VIBE_TRADING_SRC:-../../../Vibe-Trading}
+    # Alternative to building from source — a pinned published image, if available:
+    # image: ghcr.io/hkuds/vibe-trading:<PIN_ME>
+    ports:
+      - "127.0.0.1:8899:8899"        # loopback-only; our backend reaches it locally
+    env_file:
+      - ./agent.env
+    environment:
+      # 127.0.0.1 bind + this flag => host browser/backend requests count as local
+      # dev-mode access without an API_AUTH_KEY. Do NOT set with a 0.0.0.0 bind.
+      VIBE_TRADING_TRUST_DOCKER_LOOPBACK: "1"
+      OLLAMA_BASE_URL: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - vibe-runs:/app/agent/runs
+      - vibe-sessions:/app/agent/sessions
+      - vibe-home:/home/vibe/.vibe-trading
+      - vibe-swarm-runs:/app/agent/.swarm/runs
+      - vibe-uploads:/app/agent/uploads
+    restart: unless-stopped
+
+  # Optional: Vibe's own React UI (separate from our Next.js on :3000).
+  # Enable with:  make vibe-ui   (adds --profile frontend)
+  frontend:
+    image: node:20
+    working_dir: /app
+    profiles: ["frontend"]
+    ports:
+      - "127.0.0.1:5899:5899"
+    environment:
+      VITE_API_URL: "http://vibe-trading:8899"
+    volumes:
+      - ${VIBE_TRADING_SRC:-../../../Vibe-Trading}/frontend:/app
+    command: sh -c "npm install && npm run dev -- --host --port 5899"
+    depends_on:
+      - vibe-trading
+
+volumes:
+  vibe-runs:
+  vibe-sessions:
+  vibe-home:
+  vibe-swarm-runs:
+  vibe-uploads:
