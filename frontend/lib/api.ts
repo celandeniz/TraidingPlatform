@@ -7,6 +7,8 @@ import type {
   SetupStatus,
   TournamentLatest,
   TournamentRuns,
+  GatewayReply,
+  SynthesisResult,
   UniverseResponse,
   VibeResearchResult,
 } from "@/lib/types";
@@ -94,4 +96,24 @@ export function getVibeResearch(symbol: string) {
   return api<VibeResearchResult>(
     `/api/vibe/research/${encodeURIComponent(symbol)}`,
   );
+}
+
+export function runSynthesis(body: {
+  text: string;
+  symbol: string;
+  timeframe?: string;
+  n_candidates?: number;
+  promote?: boolean;
+}) {
+  return api<SynthesisResult>("/api/synthesis", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function askGateway(message: string) {
+  return api<GatewayReply>("/api/agent/gateway", {
+    method: "POST",
+    body: JSON.stringify({ message }),
+  });
 }

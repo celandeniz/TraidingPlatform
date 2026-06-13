@@ -169,3 +169,35 @@ export type VibeResearchResult = {
   detail?: string;
   source?: string;
 };
+
+export type SynthesisOutcome = {
+  name: string;
+  index: number;
+  valid: boolean;
+  reason?: string;
+  metrics?: Record<string, number | string | boolean>;
+  gates?: { passed?: boolean; failures?: string[] };
+};
+
+export type SynthesisResult = {
+  ok: boolean;
+  symbol: string;
+  promoted?: string;
+  n_candidates?: number;
+  n_valid?: number;
+  n_passing?: number;
+  provider?: string;
+  outcomes?: SynthesisOutcome[];
+  detail?: string;
+  source?: string;
+};
+
+export type GatewayReply = {
+  ok: boolean;
+  // success path carries intent/answer/data; the disabled path carries detail.
+  intent?: string;
+  answer?: string;
+  data?: Record<string, unknown>;
+  detail?: string;
+  source?: "agent_gateway";
+};
