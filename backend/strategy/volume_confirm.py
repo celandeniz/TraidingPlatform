@@ -16,7 +16,8 @@ def score_volume(df: pd.DataFrame, *, window: int = 20, mult: float = 1.5) -> di
     vol = df.get("volume")
     if vol is None or len(vol) < window + 1:
         return {"ratio": None, "passed": False}
-    avg = vol.rolling(window).mean().iloc[-1]
+    # Baseline excludes the current bar so a spike isn't diluted by itself.
+    avg = vol.shift(1).rolling(window).mean().iloc[-1]
     if pd.isna(avg) or avg <= 0:
         return {"ratio": None, "passed": False}
     ratio = float(vol.iloc[-1] / avg)

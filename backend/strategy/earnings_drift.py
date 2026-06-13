@@ -41,8 +41,11 @@ def generate(
 
     def _bus_diff(e) -> int:
         ed = pd.Timestamp(e).normalize().date()
-        a, b = min(ed, last_d), max(ed, last_d)
-        return int(np.busday_count(a, b))
+        # PEAD is a reaction AFTER the announcement: a future earnings date must
+        # never match (that would trade the gap before the event = lookahead).
+        if ed > last_d:
+            return 10 ** 9
+        return int(np.busday_count(ed, last_d))
 
     if not any(_bus_diff(e) <= match_days for e in earnings_dates):
         return no

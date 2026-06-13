@@ -17,8 +17,10 @@ def rsi(close: pd.Series, period: int = 14) -> pd.Series:
     avg_loss = loss.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
     rs = avg_gain / avg_loss
     out = 100.0 - (100.0 / (1.0 + rs))
-    # When there is no loss at all, RSI is 100 by definition.
+    # No losses -> 100 by definition; but a perfectly FLAT series (no gains AND
+    # no losses) is neutral, not overbought -> 50, else it false-signals.
     out = out.where(avg_loss != 0, 100.0)
+    out = out.where(~((avg_loss == 0) & (avg_gain == 0)), 50.0)
     return out
 
 
