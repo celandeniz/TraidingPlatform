@@ -71,6 +71,19 @@ class Engine:
         self.risk_enabled = bool(config.get("risk", {}).get("enabled", False)) and \
             position_manager is not None
 
+    # ---- hot promotion ----------------------------------------------------
+    def reload_generated_strategies(self) -> int:
+        """Merge promoted (LLM-generated) strategies into the live signal set
+        without a restart. Replaces any previously merged generated ones and
+        returns how many are now loaded. Generated strategies are paper-only."""
+        from .strategy.registry import build_generated_signal_strategies
+
+        self.signal_strategies = [s for s in self.signal_strategies
+                                  if not getattr(s, "_generated", False)]
+        generated = build_generated_signal_strategies()
+        self.signal_strategies.extend(generated)
+        return len(generated)
+
     # ---- warmup -----------------------------------------------------------
     def warmup(self, symbols: list[str]) -> None:
         n = self.config.get("data", {}).get("warmup_bars", 60)

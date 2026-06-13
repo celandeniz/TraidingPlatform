@@ -295,6 +295,15 @@ class VibeStrategyBody(BaseModel):
     prompt: str  # natural-language strategy brief for the Vibe sidecar
 
 
+class SynthesisBody(BaseModel):
+    text: str                       # natural-language strategy description
+    symbol: str = "AAPL"
+    timeframe: str = "1d"
+    bars: int = 750
+    n_candidates: int = 4
+    promote: bool = True            # auto-promote the best passing candidate to paper
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -654,6 +663,30 @@ async def api_vibe_research(symbol: str) -> dict:
     from ..integrations.vibe_trading import research_adapter as _vr
 
     res = await _a.to_thread(_vr.run_research, _vibe, symbol.upper())
+    return res.as_dict()
+
+
+@app.post("/api/synthesis")
+async def api_synthesis(body: SynthesisBody) -> dict:
+    """In-house NL->strategy compiler: best-of-N LLM-generated Python strategies,
+    sandbox-backtested, ranked by the tournament gates, best auto-promoted to
+    PAPER (live impossible by construction). Distinct from /api/vibe/strategy.
+    """
+    if _llm is None:
+        return {"ok": False, "source": "synthesis",
+                "detail": "no LLM provider (start Ollama or set a key)"}
+    from ..synthesis import StrategyBrief, synthesize
+
+    try:
+        brief = StrategyBrief.from_request(
+            body.text, symbol=body.symbol, timeframe=body.timeframe,
+            bars=body.bars, n_candidates=body.n_candidates)
+    except ValueError as exc:
+        return {"ok": False, "source": "synthesis", "detail": str(exc)}
+    import asyncio as _a
+
+    res = await _a.to_thread(synthesize, brief, settings=_settings, cfg=_config,
+                             llm=_llm, do_promote=body.promote)
     return res.as_dict()
 
 

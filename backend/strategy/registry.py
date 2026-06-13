@@ -58,6 +58,30 @@ def build_confirmation_strategies(config: dict) -> list[ConfirmationStrategy]:
     return [_make(CONFIRMATION_STRATEGIES, k, "confirmation") for k in keys]
 
 
+def build_generated_signal_strategies() -> list:
+    """Instantiate promoted (LLM-generated) strategies from the synthesis manifest.
+
+    Best-effort and isolated: a bad/missing entry is skipped. Each instance is
+    tagged _generated and given a .name so the runner's regime filter works.
+    These are paper-only by construction (see backend/synthesis/promoter.py).
+    """
+    try:
+        from ..synthesis.promoter import load_promoted
+    except Exception:  # noqa: BLE001 - synthesis optional
+        return []
+    out = []
+    for key, cls in load_promoted().items():
+        try:
+            inst = cls()
+            if not getattr(inst, "name", None):
+                inst.name = key
+            inst._generated = True
+            out.append(inst)
+        except Exception:  # noqa: BLE001 - skip a bad class, keep the rest
+            continue
+    return out
+
+
 def _make(registry: dict[str, type], key: str, kind: str):
     if key not in registry:
         raise KeyError(

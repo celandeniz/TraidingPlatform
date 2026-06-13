@@ -32,3 +32,5 @@ backend/store/earnings_cache/
 backend/store/tournament/
 
 backend/store/panel_cache/
+backend/store/generated_strategies/
+backend/store/synthesis/
