@@ -340,6 +340,21 @@ marketdata:
   providers: {}                   # per-asset default, e.g. {equity: fmp, crypto: fmp}
   api_keys: {}                    # inline keys; or set *_api_key in .env
 
+# HKUDS/Vibe-Trading sidecar (runs as a Docker container on :8899; see
+# deploy/vibe-trading/). Off by default. Execution is PROPOSAL-ONLY and routes
+# back through our OMS — Vibe never trades directly and holds no broker keys.
+vibe_trading:
+  enabled: false
+  base_url: "http://127.0.0.1:8899"
+  health_path: "/health"          # GET liveness probe (Vibe api_server.py)
+  request_timeout: 60             # seconds for research/strategy calls
+  health_timeout: 2               # seconds for the up/down probe (mirrors Ollama)
+  committee_hook: false           # fold a Vibe advisory vote into the LLM committee
+  purposes:
+    research: true                # advisory research/factor analysis
+    strategy: true                # NL->strategy (advisory/exploratory; not auto-promoted)
+    execution: false              # order proposals routed through our OMS (opt-in)
+
 # AI decision & research layer (Phase 2). See spec phase2-ai-decision.
 research:
   enabled: true

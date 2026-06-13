@@ -45,6 +45,9 @@ class Settings(BaseSettings):
         default="", validation_alias=AliasChoices("CCXT_SECRET_KEY", "CCXT_API_SECRET")
     )
     ccxt_exchange: str = "binance"
+    # Vibe-Trading sidecar bearer token (only needed if its :8899 is exposed
+    # beyond loopback; sent as the API_AUTH_KEY header). See deploy/vibe-trading/.
+    vibe_api_auth_key: str = ""
     # Optional OpenBB market-data provider keys (only used when marketdata.enabled).
     fmp_api_key: str = ""
     polygon_api_key: str = ""

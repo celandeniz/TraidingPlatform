@@ -31,6 +31,7 @@ from ..data.alpaca_provider import AlpacaProvider
 from ..execution.base import OrderRequest
 from ..portfolio.risk import RiskConfig, RiskManager
 from ..research.copilot_agent import CopilotAgent
+from ..integrations.vibe_trading import build_vibe_client
 from ..research.llm_factory import build_llm_client
 from ..research.news_provider import AlpacaNewsProvider
 from ..runner import Engine
@@ -165,6 +166,12 @@ if _llm is not None and _pp_cfg.get("enabled", True):
         weights=_pp_cfg.get("weights") or {},
     )
 
+# Vibe-Trading sidecar (HKUDS/Vibe-Trading in a Docker container on :8899). Built
+# only when vibe_trading.enabled AND the container answers its health probe; None
+# otherwise so every /api/vibe/* endpoint degrades cleanly. Execution proposals
+# (later phase) route back through the OMS — Vibe never trades directly.
+_vibe = build_vibe_client(_settings, _config)  # VibeClient | None
+
 # Phase D: order ledger (Trading-as-Git) over the same executor, and a simple
 # in-memory Inbox push channel (workspace -> user).
 from ..execution.analytics import ExecutionAnalytics  # noqa: E402
@@ -284,6 +291,10 @@ class ReplayBody(BaseModel):
     speed_ms: int = 120  # delay between bars, to animate the UI
 
 
+class VibeStrategyBody(BaseModel):
+    prompt: str  # natural-language strategy brief for the Vibe sidecar
+
+
 @app.get("/")
 async def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
@@ -322,7 +333,9 @@ async def favicon() -> Response:
 def _rebuild_runtime_for_config(config: dict) -> None:
     """Rebuild config-dependent module globals after an in-process profile switch."""
     global _config, _routing, _executor, _rcfg, _exec_analytics, _oms, _ALLOWED_WS_ORIGINS
+    global _vibe
     _config = config
+    _vibe = build_vibe_client(_settings, _config)
     _routing = build_routing_executor(_settings, _config)
     risk_cfg_raw = _config.get("risk", {})
     if risk_cfg_raw.get("enabled", False):
@@ -405,6 +418,9 @@ def _public_runtime() -> dict:
         "live_trading_enabled": live_flag,
         "paper_mode": not live_flag or trading_mode.lower() != "live",
         "risk_enabled": bool(_config.get("risk", {}).get("enabled", False)),
+        # Vibe sidecar: enabled in config vs. actually reachable at startup.
+        "vibe_enabled": bool(_config.get("vibe_trading", {}).get("enabled", False)),
+        "vibe_up": _vibe is not None,
     }
 
 
@@ -621,6 +637,72 @@ async def api_panel(symbol: str, refresh: bool = False) -> dict:
     return _asdict(res)
 
 
+@app.get("/api/vibe/research/{symbol}")
+async def api_vibe_research(symbol: str) -> dict:
+    """Advisory research summary for one symbol from the Vibe-Trading sidecar.
+
+    Degrades to {"ok": false, ...} (HTTP 200) when the sidecar is disabled,
+    unreachable, or the research purpose is off — never a 500. Advisory only;
+    never touches the trading path.
+    """
+    vcfg = _config.get("vibe_trading", {})
+    if _vibe is None or not vcfg.get("purposes", {}).get("research", False):
+        return {"ok": False, "symbol": symbol.upper(), "source": "vibe",
+                "detail": "vibe_trading disabled, unreachable, or research purpose off"}
+    import asyncio as _a
+
+    from ..integrations.vibe_trading import research_adapter as _vr
+
+    res = await _a.to_thread(_vr.run_research, _vibe, symbol.upper())
+    return res.as_dict()
+
+
+@app.post("/api/vibe/strategy")
+async def api_vibe_strategy(body: VibeStrategyBody) -> dict:
+    """Build + backtest a strategy from a NL brief via the Vibe sidecar.
+
+    EXPLORATORY/ADVISORY ONLY — result is tagged source="vibe" and is never
+    auto-promoted to paper (that path is our backend/synthesis/ compiler).
+    Degrades to {"ok": false, ...} (HTTP 200) when the sidecar is off/unreachable
+    or the strategy purpose is disabled.
+    """
+    vcfg = _config.get("vibe_trading", {})
+    if _vibe is None or not vcfg.get("purposes", {}).get("strategy", False):
+        return {"ok": False, "source": "vibe", "auto_promoted": False,
+                "detail": "vibe_trading disabled, unreachable, or strategy purpose off"}
+    import asyncio as _a
+
+    from ..integrations.vibe_trading import strategy_adapter as _vs
+
+    res = await _a.to_thread(_vs.build_strategy, _vibe, body.prompt)
+    return res.as_dict()
+
+
+@app.post("/api/vibe/order/propose")
+async def api_vibe_order_propose(proposal: dict) -> dict:
+    """Accept an order PROPOSAL from Vibe and route it through our OMS.
+
+    The proposal is validated, then submitted via Toolset.submit_order ->
+    OrderManager (audit ledger) -> guard pipeline -> executor. Vibe never trades
+    directly and holds no broker credentials; the live-trading hard-block is
+    unchanged. Gated behind vibe_trading.purposes.execution (default false).
+    """
+    vcfg = _config.get("vibe_trading", {})
+    if not vcfg.get("purposes", {}).get("execution", False):
+        return {"ok": False, "source": "vibe", "stage": "gate",
+                "detail": "vibe execution disabled (vibe_trading.purposes.execution=false)"}
+    from ..integrations.vibe_trading import execution_router
+    from ..mcp.tools import Toolset
+
+    toolset = Toolset(_executor, oms=_oms, market_data=None, config=_config)
+    result = execution_router.route_proposal(proposal, toolset)
+    await hub.broadcast({"type": "order", "ok": result.get("ok", False),
+                         "symbol": result.get("symbol"), "side": result.get("side"),
+                         "qty": result.get("qty"), "status": result.get("status"),
+                         "detail": result.get("detail"), "source": "vibe"})
+    return result
+
+
 @app.get("/api/committee/{symbol}")
 async def committee(symbol: str) -> dict:
     """On-demand TradingAgents-style committee verdict for one symbol (Claude)."""
@@ -649,6 +731,16 @@ async def committee(symbol: str) -> dict:
                 extra_reports = [_panel_report(_panel.run(sym))]
             except Exception:  # noqa: BLE001 — the hook must never break the committee
                 extra_reports = None
+
+        # Optional Vibe advisory vote (off by default; never breaks the committee).
+        if _vibe is not None and _config.get("vibe_trading", {}).get("committee_hook", False):
+            try:
+                from ..integrations.vibe_trading import research_adapter as _vr
+
+                vibe_report = _vr.to_report(_vr.run_research(_vibe, sym))
+                extra_reports = (extra_reports or []) + [vibe_report]
+            except Exception:  # noqa: BLE001 — advisory hook must never break the committee
+                pass
 
         return run_committee(_llm, sym, "buy", context=f"On-demand review of {sym}.",
                              headlines=headlines, gate=gate, bb_meta={}, cfg=ccfg,
