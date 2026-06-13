@@ -24,6 +24,38 @@ def _arg(flag: str, default):
     return default
 
 
+def _momentum_seeds(cfg: dict, top_n: int = 10) -> list:
+    """Top-N names by 12-1 cross-sectional momentum from the DAILY cache.
+
+    The platform's best, data-available strategy here is daily cross-sectional
+    momentum (intraday/Alpaca data is starved). We compute it directly so the
+    autonomous trader has real candidates to consider. Best-effort; [] on failure.
+    """
+    try:
+        from pathlib import Path
+
+        from backend.data.daily_cache import DailyBarCache
+        from backend.strategy.xs_momentum import MIN_BARS, momentum_12_1
+        from backend.universe import load_universe
+
+        universe = sorted(load_universe({**cfg, "universe_mode": "nasdaq100"}))
+        cache = DailyBarCache(Path("backend/store/daily_cache"))
+        rep = cache.ensure(universe, min_years=2)
+        scores = []
+        for sym in rep.included:
+            df = cache.get(sym)
+            if df is not None and len(df) >= MIN_BARS:
+                try:
+                    scores.append((sym, momentum_12_1(df["close"])))
+                except Exception:  # noqa: BLE001
+                    continue
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return [{"symbol": s, "score": round(m, 4), "strategy": "xs_momentum"}
+                for s, m in scores[:top_n]]
+    except Exception:  # noqa: BLE001 - seeding is optional
+        return []
+
+
 def main() -> None:
     from backend.agent.auto_trader import AutoTrader
     from backend.mcp.server import build_toolset
@@ -40,6 +72,8 @@ def main() -> None:
     interval = int(_arg("--interval", 900))
     dry_run = "--dry-run" in sys.argv
     max_qty = float(_arg("--max-qty", cfg.get("auto_trader", {}).get("max_qty", 10)))
+    seed = "--no-seed" not in sys.argv          # momentum seeding on by default
+    seed_n = int(_arg("--seed-n", 10))
 
     toolset = build_toolset()              # executor -> guards -> OMS, paper
     llm = build_llm_client(settings, cfg)
@@ -60,7 +94,8 @@ def main() -> None:
         cycle += 1
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")
         try:
-            out = trader.run_cycle()
+            seeds = _momentum_seeds(cfg, top_n=seed_n) if seed else None
+            out = trader.run_cycle(seed_candidates=seeds)
             acted = [a for a in out.get("actions", [])
                      if a.get("status") in ("proposed", "executed")]
             print(f"[auto-trade] {ts} cycle {cycle}: proposed={out.get('n_proposed', 0)} "
