@@ -12,6 +12,7 @@ The primary UI is now a Next.js + Tailwind + shadcn/ui app in `frontend/`. The o
 - S&P 500 + NASDAQ-100 scanner with 5-minute buy-edge scores. Score is estimated edge, not a guarantee.
 - Strategy tournament: 6 US-equity strategies (ORB, gap-and-go, cross-sectional momentum, sector rotation, earnings drift, pairs stat-arb) ranked by out-of-sample Sharpe behind hard risk gates, with a `/tournament` leaderboard.
 - Persona panel: five investor-philosophy AI analysts (value/moat, deep value, GARP, macro, risk chief) deliver a cached per-symbol consensus on the research page; optionally joins the LLM committee as one analyst.
+- Vibe-Trading sidecar (optional): integrates HKUDS/Vibe-Trading as a Docker container for advisory research, exploratory NL→strategy, and order proposals. Off by default; runs out-of-process (Python 3.11), and order proposals route back through our OMS/guards (Vibe never trades directly). See `deploy/vibe-trading/`.
 - Unified news from Alpaca, RSS, and Yahoo, plus catalyst, sentiment, and LLM committee views.
 - Optional LLM providers: Ollama, Claude, Gemini, DeepSeek, and OpenAI-compatible endpoints.
 - Optional automation: scheduler, snapshots, reflection memory, auto-trader cycle, and Perspective live tables.

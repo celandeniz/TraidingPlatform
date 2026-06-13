@@ -8,6 +8,7 @@ import type {
   TournamentLatest,
   TournamentRuns,
   UniverseResponse,
+  VibeResearchResult,
 } from "@/lib/types";
 
 export const API_BASE =
@@ -86,5 +87,11 @@ export function runTournament() {
 export function getPanel(symbol: string, refresh = false) {
   return api<PanelResult>(
     `/api/panel/${encodeURIComponent(symbol)}${refresh ? "?refresh=true" : ""}`,
+  );
+}
+
+export function getVibeResearch(symbol: string) {
+  return api<VibeResearchResult>(
+    `/api/vibe/research/${encodeURIComponent(symbol)}`,
   );
 }

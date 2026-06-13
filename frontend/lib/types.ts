@@ -158,3 +158,14 @@ export type PanelResult = {
   generated_at: string;
   cached: boolean;
 };
+
+export type VibeResearchResult = {
+  ok: boolean;
+  symbol: string;
+  summary?: string;
+  side?: "long" | "short" | "pass";
+  confidence?: number;
+  events?: number;
+  detail?: string;
+  source?: string;
+};
