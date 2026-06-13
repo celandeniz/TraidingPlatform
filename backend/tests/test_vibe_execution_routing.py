@@ -29,16 +29,17 @@ class RecordingExecutor:
                            qty=req.qty, status="filled")
 
 
-def _toolset_with_oms():
+def _toolset_with_oms(tmp_path):
     from backend.oms.ledger import OrderManager
     execu = RecordingExecutor()
-    oms = OrderManager(execu)
+    # Isolated ledger — never write to the shared logs/order_ledger.jsonl.
+    oms = OrderManager(execu, ledger_path=tmp_path / "ledger.jsonl")
     return Toolset(execu, oms=oms, config={}), execu
 
 
 # --- 1. valid proposal reaches the OMS/adapter path -----------------------
-def test_valid_proposal_reaches_oms_submit():
-    toolset, execu = _toolset_with_oms()
+def test_valid_proposal_reaches_oms_submit(tmp_path):
+    toolset, execu = _toolset_with_oms(tmp_path)
     out = execution_router.route_proposal(
         {"symbol": "aapl", "side": "long", "qty": 3, "rationale": "breakout"}, toolset)
     assert out["ok"] is True and out["source"] == "vibe"
@@ -47,8 +48,8 @@ def test_valid_proposal_reaches_oms_submit():
     assert req.symbol == "AAPL" and req.side == "buy" and req.qty == 3
 
 
-def test_short_maps_to_sell():
-    toolset, execu = _toolset_with_oms()
+def test_short_maps_to_sell(tmp_path):
+    toolset, execu = _toolset_with_oms(tmp_path)
     execution_router.route_proposal({"ticker": "TSLA", "action": "short", "size": 2}, toolset)
     assert execu.submitted[0].side == "sell"
 
