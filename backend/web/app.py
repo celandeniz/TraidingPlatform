@@ -835,36 +835,15 @@ async def backtest(body: BacktestBody) -> dict:
     import asyncio as _a
 
     from ..backtest.analyze import analyze_results
-    from ..backtest.engine import CostModel, ExitParams, run_backtest
-    from ..strategy.atr_trend import generate as atr_g
-    from ..strategy.donchian_breakout import generate as donch
-    from ..strategy.ema_momentum import generate as ema
-    from ..strategy.keltner_breakout import generate as kelt
-    from ..strategy.macd_cross import generate as macd_g
-    from ..strategy.rsi_reversion import generate as rsi_g
-    from ..strategy.spike_fade import generate as spike
-    from ..strategy.vwap_reversion import generate as vwap_g
-
-    fns = {
-        "spike_fade": lambda df: spike(df, zscore_window=20, lookback_k=2, z_entry=2.0),
-        "ema_momentum": lambda df: ema(df, fast=12, slow=26),
-        "donchian": lambda df: donch(df, channel=20),
-        "rsi_reversion": lambda df: rsi_g(df, period=14),
-        "macd_cross": lambda df: macd_g(df, fast=12, slow=26),
-        "vwap_reversion": lambda df: vwap_g(df, band_pct=1.0),
-        "keltner_breakout": lambda df: kelt(df, period=20, mult=2.0),
-        "atr_trend": lambda df: atr_g(df, period=20, k=1.5),
-    }
-    fn = fns.get(body.strategy, fns["spike_fade"])
+    from ..backtest.run_one import available_strategies, load_bars, run_one
 
     def _run():
-        df = _provider.get_recent_bars(body.symbol.upper(), body.timeframe, body.bars)
-        res = run_backtest(
-            df, fn,
-            exits=ExitParams(body.take_profit_pct, body.stop_loss_pct, 0.8, 90, True),
-            costs=CostModel(1.0, 2.0), warmup=35,
-            scenario=f"{body.symbol}|{body.timeframe}|{body.strategy}",
-        )
+        df = load_bars(body.symbol, body.timeframe, body.bars, _provider)
+        if df is None or len(df) == 0:
+            raise ValueError("no bars returned for this symbol/timeframe")
+        res = run_one(df, body.strategy, take_profit_pct=body.take_profit_pct,
+                      stop_loss_pct=body.stop_loss_pct,
+                      scenario=f"{body.symbol}|{body.timeframe}|{body.strategy}")
         analysis = analyze_results([res], _llm)
         return df, res, analysis
 
@@ -912,6 +891,8 @@ async def backtest(body: BacktestBody) -> dict:
         "candles": candles, "markers": markers, "trades": trades,
         "ai": {"verdict": analysis.get("verdict"), "caveats": analysis.get("caveats"),
                "available": analysis.get("available")},
+        "available_strategies": available_strategies(),
+        "timeframes": ["1d", "1h", "15m", "5m"],
     }
 
 
