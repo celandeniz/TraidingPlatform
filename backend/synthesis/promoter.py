@@ -43,9 +43,16 @@ def _store_path(dest: Path) -> str:
         return str(dest)
 
 
-def _resolve(file: str) -> Path:
+def _resolve(file: str):
+    """Resolve a manifest path and require it to live under GEN_DIR. Returns the
+    Path, or None if it escapes the store (tampered manifest / path traversal)."""
     p = Path(file)
-    return p if p.is_absolute() else (REPO_DIR / p)
+    p = (p if p.is_absolute() else (REPO_DIR / p)).resolve()
+    try:
+        p.relative_to(GEN_DIR.resolve())
+    except ValueError:
+        return None
+    return p
 
 
 def _load_manifest() -> dict:
@@ -96,7 +103,10 @@ def load_promoted() -> dict:
     manifest = _load_manifest()
     for key, entry in manifest.items():
         try:
-            source = _resolve(entry["file"]).read_text(encoding="utf-8")
+            path = _resolve(entry["file"])
+            if path is None:  # escapes GEN_DIR — refuse
+                continue
+            source = path.read_text(encoding="utf-8")
             ok, _, class_name = validate_source(source)  # re-validate on load
             if not ok:
                 continue

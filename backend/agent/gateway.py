@@ -79,7 +79,8 @@ class AgentGateway:
         intent, args = self._classify(message)
         data = self._dispatch(intent, args)
         answer = self._summarize(message, intent, data)
-        return GatewayReply(True, intent, answer, data)
+        # ok reflects the dispatched tool result, not merely "we routed it".
+        return GatewayReply(bool(data.get("ok", True)), intent, answer, data)
 
     # --- classification ---------------------------------------------------
     def _classify(self, message: str) -> tuple[str, dict]:

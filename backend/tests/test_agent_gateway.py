@@ -113,7 +113,7 @@ class FakeVibe:
 def test_research_without_vibe_degrades():
     reply = AgentGateway(FakeToolset(), llm=FakeLLM(intent="research", symbol="AAPL")).route(
         "research AAPL")
-    assert reply.intent == "research" and reply.ok
+    assert reply.intent == "research" and not reply.ok  # ok mirrors tool result
     assert reply.data["ok"] is False  # vibe off
 
 
@@ -123,4 +123,4 @@ def test_tool_failure_degrades_gracefully():
             raise RuntimeError("boom")
 
     reply = AgentGateway(Broken(), llm=FakeLLM(intent="account")).route("account?")
-    assert reply.ok and reply.data["ok"] is False and "boom" in reply.answer
+    assert not reply.ok and reply.data["ok"] is False and "boom" in reply.answer

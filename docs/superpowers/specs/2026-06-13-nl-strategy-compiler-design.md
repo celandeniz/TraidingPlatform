@@ -154,6 +154,34 @@ Each surviving candidate runs in a fresh `python -m backend.synthesis._worker` s
 - Portfolio/confirmation-strategy generation (signal strategies first; same pattern extends later)
 - Agentic sequential refinement (chose best-of-N instead)
 
+## Security review outcomes (post-implementation, Codex pass)
+
+Applied hardening:
+- Validator now blocks attribute pivots off the injected `pd`/`indicators` objects
+  (`io`/`os`/`system`/`read_*`/`to_*`/`eval`/`query`/...), closing chains like
+  `pd.io.common.os.system(...)` and `pd.read_csv("/proc/1/environ")` before exec.
+- `/api/vibe/order/propose` refuses unless the platform is in paper mode (guards the
+  IB/CCXT adapters whose live path isn't behind `execution/live.py`).
+- `runner.Engine.reload_generated_strategies()` refuses to load generated strategies
+  when `settings.live_trading` is set — paper-only is now mechanically enforced.
+- Promoter constrains manifest paths to live under `GEN_DIR` (no path traversal).
+- Generated strategies are always namespaced by manifest key (no regime-filter gaming).
+- Silent-failure fixes: gateway `ok` mirrors the tool result; synthesis reports
+  `ok=False` when candidates passed but promotion failed; per-candidate backtest is
+  isolated so one bad candidate can't abort the run.
+
+Residual risk (known limitations — NOT fully closed; track before enabling on untrusted input):
+- **In-process execution of promoted code.** A promoted strategy's class body and
+  `evaluate()` run in the runner process (inherent to any registered strategy). The
+  AST validator (re-run on load) is the guard; it is not a true OS sandbox. The
+  subprocess sandbox only isolates the *backtest/evaluation* phase. A persistent
+  sandboxed execution worker for promoted strategies is a follow-up.
+- **Sandbox is not network/seccomp isolated.** rlimits + scrubbed env + no-file-writes,
+  but no network namespace. Acceptable because generation is driven by our own LLM
+  prompt (not adversarial input) and env carries no secrets; revisit if briefs ever
+  come from untrusted users. A constrained strategy DSL (vs. raw Python) would remove
+  the class of risk entirely.
+
 ## Open items for the implementation plan
 
 - Exact `RLIMIT_*` values and per-candidate wall-clock timeout (tune during build)

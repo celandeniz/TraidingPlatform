@@ -58,6 +58,11 @@ def test_validator_accepts_good():
     ("class A:\n pass\nclass B:\n pass", "exactly one class"),
     ("class X:\n    def run(self, ctx): return None", "evaluate"),
     ("def f(): pass", "exactly one class"),
+    # attribute pivots off injected pd/indicators (Codex review)
+    ("class X:\n    def evaluate(self, ctx): return pd.io.common.os.system('x')", "not allowed"),
+    ("class X:\n    def evaluate(self, ctx): return pd.read_csv('/proc/1/environ')", "read_csv"),
+    ("class X:\n    def evaluate(self, ctx): return ctx.window.eval('1')", "eval"),
+    ("class X:\n    def evaluate(self, ctx): return ctx.window.to_pickle('/x')", "to_pickle"),
 ])
 def test_validator_rejects(bad, needle):
     ok, reason, _ = validate_source(bad)

@@ -746,6 +746,11 @@ async def api_vibe_order_propose(proposal: dict) -> dict:
     if not vcfg.get("purposes", {}).get("execution", False):
         return {"ok": False, "source": "vibe", "stage": "gate",
                 "detail": "vibe execution disabled (vibe_trading.purposes.execution=false)"}
+    # Vibe must never reach a live broker, even via a non-Alpaca (IB/CCXT) adapter
+    # whose live path isn't behind execution/live.py. Refuse unless we're in paper.
+    if getattr(_settings, "live_trading", False) or not _public_runtime().get("paper_mode", True):
+        return {"ok": False, "source": "vibe", "stage": "gate",
+                "detail": "vibe execution blocked: platform is not in paper mode"}
     from ..integrations.vibe_trading import execution_router
     from ..mcp.tools import Toolset
 

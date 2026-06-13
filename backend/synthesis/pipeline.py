@@ -90,7 +90,12 @@ def synthesize(brief: StrategyBrief, *, settings, cfg: dict, llm=None,
         if not ok:
             outcomes.append(CandidateOutcome(name, cand.index, False, reason=reason))
             continue
-        bt = backtest(cand.source, class_name, df, config=cfg, warmup=35)
+        try:
+            bt = backtest(cand.source, class_name, df, config=cfg, warmup=35)
+        except Exception as exc:  # noqa: BLE001 - one bad candidate must not abort the run
+            outcomes.append(CandidateOutcome(name, cand.index, True,
+                                             reason=f"backtest error: {exc}"))
+            continue
         if not bt.get("ok", False):
             outcomes.append(CandidateOutcome(name, cand.index, True,
                                              reason=bt.get("detail", "backtest failed")))
@@ -108,6 +113,7 @@ def synthesize(brief: StrategyBrief, *, settings, cfg: dict, llm=None,
     passing = ranker.passing(reports)
 
     promoted = ""
+    promote_error = ""
     if do_promote and passing:
         best = passing[0]
         cand = next(c for c in candidates
@@ -116,14 +122,22 @@ def synthesize(brief: StrategyBrief, *, settings, cfg: dict, llm=None,
                               best.metrics, brief_text=brief.text)
         if pr.get("ok"):
             promoted = pr["key"]
+        else:
+            promote_error = pr.get("detail", "promotion failed")
+
+    if promoted:
+        ok, detail = True, ""
+    elif passing and promote_error:           # candidates passed but promotion failed
+        ok, detail = False, f"promotion failed: {promote_error}"
+    else:
+        ok, detail = True, "no candidate cleared the risk gates"
 
     res = SynthesisResult(
-        ok=True, symbol=brief.symbol, promoted=promoted,
+        ok=ok, symbol=brief.symbol, promoted=promoted,
         n_candidates=len(candidates),
         n_valid=sum(1 for o in outcomes if o.valid),
         n_passing=len(passing), provider=provider_name,
-        outcomes=[asdict(o) for o in outcomes],
-        detail="" if promoted else "no candidate cleared the risk gates",
+        outcomes=[asdict(o) for o in outcomes], detail=detail,
     )
     audit.record({"event": "synthesis", "brief": brief.text, "timeframe": brief.timeframe,
                   **res.as_dict()})

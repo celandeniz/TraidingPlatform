@@ -73,8 +73,12 @@ def build_generated_signal_strategies() -> list:
     for key, cls in load_promoted().items():
         try:
             inst = cls()
-            if not getattr(inst, "name", None):
-                inst.name = key
+            # Always namespace generated strategies by their manifest key so a
+            # model-chosen name can't collide with a built-in or game the regime
+            # filter. Keep any model name only as a display attribute.
+            if getattr(inst, "name", None):
+                inst.display_name = inst.name
+            inst.name = key
             inst._generated = True
             out.append(inst)
         except Exception:  # noqa: BLE001 - skip a bad class, keep the rest

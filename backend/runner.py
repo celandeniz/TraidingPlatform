@@ -76,10 +76,16 @@ class Engine:
         """Merge promoted (LLM-generated) strategies into the live signal set
         without a restart. Replaces any previously merged generated ones and
         returns how many are now loaded. Generated strategies are paper-only."""
+        from .settings import get_settings
         from .strategy.registry import build_generated_signal_strategies
 
+        # Drop any previously merged generated strategies first.
         self.signal_strategies = [s for s in self.signal_strategies
                                   if not getattr(s, "_generated", False)]
+        # Generated strategies are paper-only by construction: never load them when
+        # live trading is enabled, regardless of the manifest.
+        if get_settings().live_trading:
+            return 0
         generated = build_generated_signal_strategies()
         self.signal_strategies.extend(generated)
         return len(generated)
