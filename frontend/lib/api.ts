@@ -11,6 +11,12 @@ import type {
   SynthesisResult,
   UniverseResponse,
   VibeResearchResult,
+  BacktestResult,
+  EquityCurveResult,
+  GreeksResult,
+  ScenariosResult,
+  SelectResult,
+  WalkForwardResult,
 } from "@/lib/types";
 
 export const API_BASE =
@@ -116,4 +122,62 @@ export function askGateway(message: string) {
     method: "POST",
     body: JSON.stringify({ message }),
   });
+}
+
+export function runBacktest(body: {
+  symbol: string;
+  timeframe: string;
+  strategy: string;
+  take_profit_pct?: number;
+  stop_loss_pct?: number;
+  bars?: number;
+}) {
+  return api<BacktestResult>("/api/backtest", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function runWalkforward(body: {
+  symbol: string;
+  timeframe: string;
+  folds?: number;
+  regime_filtered?: boolean;
+  bars?: number;
+}) {
+  return api<WalkForwardResult>("/api/walkforward", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getScenarios() {
+  return api<ScenariosResult>("/api/backtest/scenarios");
+}
+
+export function runSelect() {
+  return api<SelectResult>("/api/select", { method: "POST", body: "{}" });
+}
+
+export function getEquityCurve(days = 7) {
+  return api<EquityCurveResult>(`/api/equity_curve?days=${days}`);
+}
+
+export function getGreeks(p: {
+  spot: number;
+  strike: number;
+  days: number;
+  vol: number;
+  rate?: number;
+  call?: boolean;
+}) {
+  const q = new URLSearchParams({
+    spot: String(p.spot),
+    strike: String(p.strike),
+    days: String(p.days),
+    vol: String(p.vol),
+    rate: String(p.rate ?? 0),
+    call: String(p.call ?? true),
+  });
+  return api<GreeksResult>(`/api/options/greeks?${q.toString()}`);
 }
