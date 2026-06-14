@@ -10,7 +10,7 @@ from backend.data.daily_cache import DailyBarCache
 
 
 def _daily(n_days: int, end: date | None = None) -> pd.DataFrame:
-    end = end or date(2026, 6, 10)
+    end = end or date.today()
     idx = pd.bdate_range(end=end, periods=n_days, tz="UTC")
     return pd.DataFrame(
         {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1e6},
