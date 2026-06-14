@@ -33,7 +33,7 @@ export function EquityCurve() {
       <CardContent className="space-y-4">
         <div className="flex items-end gap-2">
           <input type="number" min={1} max={90} value={days}
-            onChange={(e) => setDays(Number(e.target.value))}
+            onChange={(e) => setDays(Number(e.target.value) || 7)}
             className="h-10 w-24 rounded-md border bg-background px-3 text-sm" />
           <Button onClick={load} disabled={busy}>{busy ? "Loading…" : "Load curve"}</Button>
         </div>

@@ -39,7 +39,7 @@ export function WalkForward() {
           <input value={symbol} onChange={(e) => setSymbol(e.target.value)}
             className="h-10 w-28 rounded-md border bg-background px-3 text-sm" placeholder="Symbol" />
           <input type="number" min={2} max={10} value={folds}
-            onChange={(e) => setFolds(Number(e.target.value))}
+            onChange={(e) => setFolds(Number(e.target.value) || 4)}
             className="h-10 w-24 rounded-md border bg-background px-3 text-sm" />
           <Button onClick={run} disabled={busy || !symbol.trim()}>{busy ? "Running…" : "Run walk-forward"}</Button>
         </div>
