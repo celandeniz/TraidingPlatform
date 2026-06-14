@@ -201,3 +201,96 @@ export type GatewayReply = {
   detail?: string;
   source?: "agent_gateway";
 };
+
+export type BacktestResult = {
+  ok: boolean;
+  detail?: string;
+  scenario?: string;
+  symbol?: string;
+  n_trades?: number;
+  win_rate?: number;
+  total_return_pct?: number;
+  profit_factor?: number;
+  max_drawdown_pct?: number;
+  sharpe?: number;
+  buy_hold_pct?: number;
+  excess_vs_buy_hold?: number;
+  exposure_pct?: number;
+  significant?: boolean;
+  significance_label?: string;
+  p_value?: number;
+  available_strategies?: string[];
+  timeframes?: string[];
+  ai?: { verdict?: string; caveats?: string[]; available?: boolean };
+};
+
+export type WalkForwardFold = {
+  fold: number;
+  chosen: string;
+  is_return_pct: number;
+  oos_return_pct: number;
+  oos_buy_hold_pct: number;
+  oos_excess_pct: number;
+  oos_trades: number;
+  oos_start: string;
+  oos_end: string;
+};
+
+export type WalkForwardResult = {
+  ok: boolean;
+  detail?: string;
+  symbol?: string;
+  timeframe?: string;
+  regime_filtered?: boolean;
+  n_folds?: number;
+  avg_is_return?: number;
+  avg_oos_return?: number;
+  avg_oos_excess?: number;
+  degradation_pct?: number;
+  oos_positive_folds?: number;
+  oos_beat_bh_folds?: number;
+  verdict?: string;
+  folds?: WalkForwardFold[];
+};
+
+export type ScenarioRow = {
+  scenario: string;
+  n_trades: number;
+  win_rate: number;
+  total_return_pct: number;
+  profit_factor: number;
+  max_drawdown_pct: number;
+  sharpe: number;
+  buy_hold_pct: number;
+  excess_vs_buy_hold: number;
+};
+
+export type ScenariosResult = { ok: boolean; detail?: string; count?: number; rows: ScenarioRow[] };
+
+export type SelectVerdict = {
+  symbol: string;
+  tradable: boolean;
+  avg_oos_return: number;
+  oos_beat_bh_folds: number;
+  n_folds: number;
+  reason: string;
+};
+
+export type SelectResult = {
+  ok: boolean;
+  detail?: string;
+  tradable?: string[];
+  excluded?: string[];
+  all_avg_oos?: number;
+  tradable_avg_oos?: number;
+  verdicts?: SelectVerdict[];
+};
+
+export type EquityPoint = { time?: string; equity?: number; [k: string]: unknown };
+export type EquityCurveResult = { available: boolean; detail?: string; points: EquityPoint[] };
+
+export type GreeksResult = {
+  ok: boolean;
+  detail?: string;
+  [k: string]: unknown; // price, delta, gamma, theta, vega, rho, source (from gs_analytics.as_dict)
+};
