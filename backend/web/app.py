@@ -53,6 +53,9 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 app = FastAPI(title="M7 Spike-Fade Dashboard")
 app.add_middleware(
     CORSMiddleware,
+    # Any localhost dev port (the Next dev server may bind 3000/3001/3030/... when
+    # earlier ports are taken). Safe because credentials are not allowed.
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
